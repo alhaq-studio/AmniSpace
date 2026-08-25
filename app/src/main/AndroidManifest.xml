@@ -145,6 +145,19 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".widget.QuestWidgetProvider"
+            android:exported="true"
+            android:label="Quest Tracker Widget">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/quest_widget_info" />
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"

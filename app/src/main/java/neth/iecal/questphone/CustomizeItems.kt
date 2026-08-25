@@ -8,14 +8,20 @@ import neth.iecal.questphone.app.screens.quest.stats.components.HeatMapHomeScree
 import neth.iecal.questphone.app.theme.customThemes.BaseTheme
 import neth.iecal.questphone.app.theme.customThemes.BonsaiTheme
 import neth.iecal.questphone.app.theme.customThemes.CherryBlossomsTheme
+import neth.iecal.questphone.app.theme.customThemes.CyberpunkTheme
 import neth.iecal.questphone.app.theme.customThemes.HackerTheme
+import neth.iecal.questphone.app.theme.customThemes.NordicFrostTheme
 import neth.iecal.questphone.app.theme.customThemes.PitchBlackTheme
+import neth.iecal.questphone.app.theme.customThemes.SolarizedSunsetTheme
 
 val themes: Map<String, BaseTheme> = mapOf(
     "Cherry Blossoms" to CherryBlossomsTheme(),
     "Hacker" to HackerTheme(),
     "Pitch Black" to PitchBlackTheme(),
-    "Bonsai" to BonsaiTheme()
+    "Bonsai" to BonsaiTheme(),
+    "Cyberpunk" to CyberpunkTheme(),
+    "Nordic Frost" to NordicFrostTheme(),
+    "Solarized Sunset" to SolarizedSunsetTheme()
 )
 
 const val HOME_WIDGET_PRICE = 30

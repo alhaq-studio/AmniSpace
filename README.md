@@ -21,6 +21,8 @@
 - **AES-256 Backup Encryption**: Export and import your data with high-grade PBKDF2 password-derived AES-256-CBC encryption.
 - **Habit Privacy Mode**: Hide sensitive quest titles (e.g. medical or personal habits) behind a `"🔒 Hidden Quest"` mask, unlocked via Android Biometrics (Fingerprint/Face/PIN/Pattern).
 - **Background Auto-Backups**: Periodically saves local rolling backups of your profile and quests in the background via Android `WorkManager`.
+- **Custom Theme Suite**: Custom themes including Cyberpunk, Nordic Frost, Solarized Sunset, Cherry Blossoms, Hacker, and Pitch Black.
+- **Home Screen Widgets**: Track active quests, daily streaks, and coins directly from your device launcher with native AppWidgets.
 - **Sync Migrator**: Seamlessly uploads and merges offline anonymous statistics and quests to your online account upon registration or login.
 
 ---
