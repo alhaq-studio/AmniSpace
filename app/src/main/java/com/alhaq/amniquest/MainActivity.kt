@@ -114,7 +114,7 @@ class MainActivity : FragmentActivity() {
 
         }
 
-        val currentTheme = themes[userRepository.userInfo.customization_info.equippedTheme]!!
+        val currentTheme = themes[userRepository.userInfo.customization_info.equippedTheme] ?: PitchBlackTheme()
         setContent {
             val isUserOnboarded = remember {mutableStateOf(true)}
             var currentTheme = remember { mutableStateOf(currentTheme) }
