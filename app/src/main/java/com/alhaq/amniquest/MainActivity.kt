@@ -1,0 +1,334 @@
+package com.alhaq.amniquest
+
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Bundle
+import android.util.Log
+import androidx.fragment.app.FragmentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.navigation
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import androidx.work.Data
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
+import androidx.work.WorkManager
+import androidx.work.workDataOf
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import com.alhaq.amniquest.app.navigation.RootRoute
+import com.alhaq.amniquest.app.screens.account.SetupProfileScreen
+import com.alhaq.amniquest.app.screens.account.UserInfoScreen
+import com.alhaq.amniquest.app.screens.etc.DocumentViewerScreen
+import com.alhaq.amniquest.app.screens.etc.ScreentimeStatsScreen
+import com.alhaq.amniquest.app.screens.etc.SetCoinRewardRatio
+import com.alhaq.amniquest.app.screens.game.RewardDialogMaker
+import com.alhaq.amniquest.app.screens.game.StoreScreen
+import com.alhaq.amniquest.app.screens.launcher.AppList
+import com.alhaq.amniquest.app.screens.launcher.AppListViewModel
+import com.alhaq.amniquest.app.screens.launcher.CustomizeScreen
+import com.alhaq.amniquest.app.screens.launcher.HomeScreen
+import com.alhaq.amniquest.app.screens.launcher.HomeScreenViewModel
+import com.alhaq.amniquest.app.screens.launcher.widget.WidgetScreen
+import com.alhaq.amniquest.app.screens.onboard.subscreens.SelectApps
+import com.alhaq.amniquest.app.screens.onboard.subscreens.SelectAppsModes
+import com.alhaq.amniquest.app.screens.onboard.subscreens.ShowSocialsScreen
+import com.alhaq.amniquest.app.screens.onboard.subscreens.ShowTutorial
+import com.alhaq.amniquest.app.screens.pet.TheSystemDialog
+import com.alhaq.amniquest.app.screens.quest.ListAllQuests
+import com.alhaq.amniquest.app.screens.quest.ViewQuest
+import com.alhaq.amniquest.app.screens.quest.setup.SetIntegration
+import com.alhaq.amniquest.app.screens.quest.stats.specific.BaseQuestStatsView
+import com.alhaq.amniquest.app.screens.quest.templates.SelectFromTemplates
+import com.alhaq.amniquest.app.screens.quest.templates.SetupTemplate
+import com.alhaq.amniquest.app.screens.quest.templates.TemplatesViewModel
+import com.alhaq.amniquest.app.theme.LauncherTheme
+import com.alhaq.amniquest.app.theme.customThemes.PitchBlackTheme
+import com.alhaq.amniquest.backed.isOnline
+import com.alhaq.amniquest.backed.repositories.QuestRepository
+import com.alhaq.amniquest.backed.repositories.StatsRepository
+import com.alhaq.amniquest.backed.repositories.UserRepository
+import com.alhaq.amniquest.backed.triggerQuestSync
+import com.alhaq.amniquest.backed.triggerStatsSync
+import com.alhaq.amniquest.core.Supabase.url
+import com.alhaq.amniquest.core.services.AppBlockerService
+import com.alhaq.amniquest.core.utils.FcmHandler
+import com.alhaq.amniquest.core.utils.receiver.AppInstallReceiver
+import com.alhaq.amniquest.core.utils.reminder.NotificationScheduler
+import com.alhaq.amniquest.core.workers.FileDownloadWorker
+import com.alhaq.amniquest.data.IntegrationId
+import com.alhaq.amniquest.core.core.utils.fromHex
+import java.io.File
+import javax.inject.Inject
+
+
+@AndroidEntryPoint(FragmentActivity::class)
+class MainActivity : FragmentActivity() {
+    @Inject lateinit var userRepository: UserRepository
+    @Inject lateinit var questRepository: QuestRepository
+    @Inject lateinit var statRepository: StatsRepository
+
+    private lateinit var appInstallReceiver: AppInstallReceiver
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        handleNotificationIntent(intent)
+        val questId = intent.getStringExtra("quest_id")
+        enableEdgeToEdge()
+        val data = getSharedPreferences("onboard", MODE_PRIVATE)
+        val notificationScheduler = NotificationScheduler(applicationContext,questRepository)
+        val modelSp = getSharedPreferences("models", Context.MODE_PRIVATE)
+
+        val isTokenizerDownloaded = modelSp.getBoolean("is_downloaded_tokenizer",false)
+        val tokenizer = File(filesDir, "tokenizer.model")
+
+        if(!isTokenizerDownloaded || !tokenizer.exists()){
+            val inputData = Data.Builder()
+                .putString(FileDownloadWorker.KEY_URL, "https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/resolve/main/tokenizer.model")
+                .putString(FileDownloadWorker.KEY_FILE_NAME, "tokenizer.model")
+                .putString(FileDownloadWorker.KEY_MODEL_ID, "tokenizer")
+                .build()
+            val workRequest = OneTimeWorkRequestBuilder<FileDownloadWorker>()
+                .setInputData(inputData)
+                .setExpedited(OutOfQuotaPolicy.DROP_WORK_REQUEST)
+                .build()
+
+            WorkManager.getInstance(applicationContext).enqueue(workRequest)
+
+        }
+
+        val currentTheme = themes[userRepository.userInfo.customization_info.equippedTheme]!!
+        setContent {
+            val isUserOnboarded = remember {mutableStateOf(true)}
+            var currentTheme = remember { mutableStateOf(currentTheme) }
+
+            LaunchedEffect(Unit) {
+                isUserOnboarded.value = data.getBoolean("onboard",false)
+                Log.d("onboard", isUserOnboarded.value.toString())
+
+                if(isUserOnboarded.value){
+                    try {
+                        startForegroundService(Intent(this@MainActivity, AppBlockerService::class.java))
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "Failed to start AppBlockerService: ${e.message}")
+                    }
+                }
+
+                notificationScheduler.createNotificationChannel()
+                notificationScheduler.reloadAllReminders()
+            }
+            LauncherTheme(currentTheme.value) {
+                Surface {
+                    val navController = rememberNavController()
+
+                    val unSyncedQuestItems = remember { questRepository.getUnSyncedQuests() }
+                    val unSyncedStatsItems = remember { statRepository.getAllUnSyncedStats() }
+                    val context = LocalContext.current
+
+                    RewardDialogMaker(userRepository)
+
+                    TheSystemDialog()
+                    LaunchedEffect(Unit) {
+                        launch {
+                            unSyncedQuestItems.collect {
+                                notificationScheduler.reloadAllReminders()
+                                if (context.isOnline() && !userRepository.userInfo.isAnonymous) {
+                                    triggerQuestSync(applicationContext)
+                                }
+                            }
+                        }
+                        launch {
+                            unSyncedStatsItems.collect {
+                                if (context.isOnline() && !userRepository.userInfo.isAnonymous ) {
+                                    triggerStatsSync(applicationContext)
+                                }
+                            }
+                        }
+                    }
+
+                    val appListViewModel : AppListViewModel = hiltViewModel()
+                    val homeScreenViewModel : HomeScreenViewModel = hiltViewModel()
+                    val templatesViewModel: TemplatesViewModel = hiltViewModel()
+
+                    val scope = rememberCoroutineScope()
+                    DisposableEffect(Unit) {
+                        val receiver = AppInstallReceiver { packageName ->
+                            scope.launch(Dispatchers.IO) {
+                                appListViewModel.loadApps()
+                            }
+                        }
+
+                        val filter = IntentFilter(Intent.ACTION_PACKAGE_ADDED).apply {
+                            addDataScheme("package")
+                        }
+
+                        context.registerReceiver(receiver, filter)
+
+                        onDispose {
+                            context.unregisterReceiver(receiver)
+                        }
+                    }
+                    NavHost(
+                        navController = navController,
+                        startDestination = if(questId!=null) "${RootRoute.ViewQuest.route}${questId}" else RootRoute.HomeScreen.route,
+                        popEnterTransition = { fadeIn(animationSpec = tween(700)) },
+                        popExitTransition = { fadeOut(animationSpec = tween(700)) },
+                    ) {
+
+                        composable(RootRoute.UserInfo.route) {
+                            UserInfoScreen(navController = navController)
+                        }
+                        composable(
+                            route = "${RootRoute.SelectApps.route}{mode}",
+                            arguments = listOf(navArgument("mode") { type = NavType.IntType })
+                        ) { backstack ->
+                            val mode = backstack.arguments?.getInt("mode")
+                            SelectApps(SelectAppsModes.entries[mode!!])
+                        }
+                        composable(RootRoute.HomeScreen.route) {
+                            HomeScreen(navController,homeScreenViewModel)
+                        }
+                        composable(RootRoute.WidgetScreen.route) {
+                            WidgetScreen(navController)
+                        }
+
+
+                        composable(RootRoute.Store.route) {
+                            LauncherTheme(PitchBlackTheme()) {
+                                StoreScreen(navController)
+                            }
+                        }
+
+                        composable(RootRoute.Customize.route) {
+                            LauncherTheme(PitchBlackTheme()) {
+                                CustomizeScreen(navController, currentTheme = currentTheme)
+                            }
+                        }
+                        composable(RootRoute.AppList.route) {
+                            AppList(navController,appListViewModel)
+                        }
+
+                        composable(RootRoute.ListAllQuest.route) {
+                            ListAllQuests(navController)
+                        }
+                        composable(
+                            route = "${RootRoute.ViewQuest.route}{id}",
+                            arguments = listOf(navArgument("id") { type = NavType.StringType })
+                        ) { backStackEntry ->
+                            val id = backStackEntry.arguments?.getString("id")
+
+                            ViewQuest(navController, questRepository,id!!)
+                        }
+
+                        navigation(
+                            startDestination = RootRoute.SetIntegration.route,
+                            route = RootRoute.AddNewQuest.route
+                        ) {
+                            composable(RootRoute.SetIntegration.route) {
+                                SetIntegration(
+                                    navController
+                                )
+                            }
+                            IntegrationId.entries.forEach { item ->
+                                composable(
+                                    route = item.name + "/{id}",
+                                    arguments = listOf(navArgument("id") {
+                                        type = NavType.StringType
+                                    })
+                                ) { backstack ->
+                                    var id = backstack.arguments?.getString("id")
+                                    if (id == "ntg") {
+                                        id = null
+                                    }
+                                    item.setupScreen.invoke(id, navController)
+                                }
+                            }
+                        }
+                        composable("${RootRoute.QuestStats.route}{id}") { backStackEntry ->
+                            val id = backStackEntry.arguments?.getString("id")
+
+                            BaseQuestStatsView(id!!, navController)
+                        }
+                        composable(RootRoute.SelectTemplates.route) {
+                            SelectFromTemplates(navController,templatesViewModel)
+                        }
+                        composable(RootRoute.SetupTemplate.route) {
+                            SetupTemplate(navController,templatesViewModel)
+                        }
+
+                        composable(RootRoute.SetCoinRewardRatio.route){
+                            SetCoinRewardRatio()
+                        }
+                        composable("${RootRoute.IntegrationDocs.route}{name}"){ backStackEntry ->
+                            val id = backStackEntry.arguments?.getString("name")
+                            val url = IntegrationId.valueOf(id.toString()).docLink
+                            DocumentViewerScreen(url)
+                        }
+                        composable("${RootRoute.DocViewer.route}{url}"){ backStackEntry ->
+                            val url = backStackEntry.arguments?.getString("url")
+                            DocumentViewerScreen(String.fromHex(url.toString()))
+                        }
+                        composable(RootRoute.SetupProfile.route) {
+                            SetupProfileScreen()
+                        }
+                        composable(RootRoute.ShowSocials.route) {
+                            ShowSocialsScreen()
+                        }
+
+                        composable(RootRoute.ShowTutorials.route) {
+                            ShowTutorial()
+                        }
+                        composable(RootRoute.ShowScreentimeStats.route) {
+                            ScreentimeStatsScreen()
+                        }
+                    }
+
+                }
+
+            }
+        }
+    }
+
+    override fun onResume() {
+        handleNotificationIntent(intent)
+        super.onResume()
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleNotificationIntent(intent)
+    }
+    private fun handleNotificationIntent(intent: Intent?) {
+        intent?.extras?.let { extras ->
+            val data = mutableMapOf<String, String>()
+            for (key in extras.keySet()) {
+                val value = extras.get(key)?.toString() ?: ""
+                data[key] = value
+            }
+
+            Log.d("notification Data", data.toString())
+
+            FcmHandler.handleData(this, data,userRepository)
+        }
+    }
+
+
+}
+
+

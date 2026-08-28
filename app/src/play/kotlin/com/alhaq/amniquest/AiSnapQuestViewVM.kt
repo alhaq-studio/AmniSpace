@@ -1,0 +1,240 @@
+package com.alhaq.amniquest
+
+import androidx.core.graphics.scale
+import androidx.lifecycle.application
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.jan.supabase.auth.auth
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import com.alhaq.amniquest.app.screens.quest.view.ViewQuestVM
+import com.alhaq.amniquest.app.screens.quest.view.ai_snap.AI_SNAP_PIC
+import com.alhaq.amniquest.backed.repositories.QuestRepository
+import com.alhaq.amniquest.backed.repositories.StatsRepository
+import com.alhaq.amniquest.backed.repositories.UserRepository
+import com.alhaq.amniquest.core.Supabase
+import com.alhaq.amniquest.core.utils.LocalGeminiNanoValidator
+import com.alhaq.amniquest.backend.TaskValidationClient
+import com.alhaq.amniquest.data.EvaluationStep
+import com.alhaq.amniquest.data.json
+import com.alhaq.amniquest.data.quest.ai.snap.AiSnap
+import javax.inject.Inject
+import kotlin.random.Random
+
+
+@HiltViewModel
+class AiSnapQuestViewVM @Inject constructor(
+    questRepository: QuestRepository,
+    userRepository: UserRepository,
+    statsRepository: StatsRepository,
+    application: android.app.Application,
+) : ViewQuestVM(
+    questRepository, userRepository, statsRepository, application,
+){
+    val isAiEvaluating = MutableStateFlow(false)
+    val isCameraScreen = MutableStateFlow(false)
+    var aiQuest = AiSnap()
+
+
+    val currentStep = MutableStateFlow(EvaluationStep.INITIALIZING)
+    val error = MutableStateFlow<String?>(null)
+    val results = MutableStateFlow<TaskValidationClient.ValidationResult?>(null)
+    val isModelDownloaded = MutableStateFlow(true)
+
+
+    private var isModelLoaded = false
+
+    private lateinit var modelId: String
+
+    private var isOnlineInferencing = true
+
+    private val client = TaskValidationClient()
+    private val localNano = LocalGeminiNanoValidator(application)
+
+    init {
+        viewModelScope.launch(Dispatchers.IO) {
+            loadModel()
+        }
+    }
+
+    fun setAiSnap(){
+        aiQuest = json.decodeFromString<AiSnap>(commonQuestInfo.quest_json)
+    }
+
+    fun onAiSnapQuestDone(){
+        saveMarkedQuestToDb()
+        isCameraScreen.value = false
+    }
+
+
+    fun loadModel(): Boolean {
+        isModelLoaded = true
+        isOnlineInferencing = true
+        return true
+    }
+
+    fun evaluateQuest(onEvaluationComplete: () -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            currentStep.value = EvaluationStep.INITIALIZING
+
+            val photoFile = java.io.File(application.filesDir, AI_SNAP_PIC)
+            if (!photoFile.exists()) {
+                results.value = TaskValidationClient.ValidationResult(
+                    isValid = false,
+                    reason = "Image file not found."
+                )
+                currentStep.value = EvaluationStep.COMPLETED
+                return@launch
+            }
+
+            val compressedFile = resizeAndCompressImage(photoFile, 1080, 50)
+
+            val settingsSp = application.getSharedPreferences("private_settings", android.content.Context.MODE_PRIVATE)
+            val engine = settingsSp.getString("validation_engine", "cloud") ?: "cloud"
+
+            when (engine) {
+                "local" -> {
+                    currentStep.value = EvaluationStep.EVALUATING
+                    if (localNano.isAvailable()) {
+                        val nanoResult = localNano.validateTaskLocally(aiQuest.taskDescription, aiQuest.features)
+                        results.value = nanoResult
+                        currentStep.value = EvaluationStep.COMPLETED
+                        if (nanoResult.isValid) {
+                            onEvaluationComplete()
+                        }
+                    } else {
+                        results.value = TaskValidationClient.ValidationResult(
+                            isValid = false,
+                            reason = "Gemini Nano is not supported/active on the device. Please check AICore updates or use Cloud/API engine."
+                        )
+                        currentStep.value = EvaluationStep.COMPLETED
+                    }
+                }
+                "gemini_api" -> {
+                    val geminiKey = settingsSp.getString("gemini_api_key", null)
+                    if (geminiKey.isNullOrBlank()) {
+                        results.value = TaskValidationClient.ValidationResult(
+                            isValid = false,
+                            reason = "Private Gemini API key is missing. Please configure it in your Profile settings."
+                        )
+                        currentStep.value = EvaluationStep.COMPLETED
+                    } else {
+                        currentStep.value = EvaluationStep.LOADING_MODEL
+                        val geminiValidator = com.alhaq.amniquest.backend.GeminiValidator()
+                        geminiValidator.validateTask(
+                            compressedFile,
+                            aiQuest.taskDescription,
+                            aiQuest.features.joinToString(","),
+                            geminiKey
+                        ) { result ->
+                            results.value = result.getOrNull() ?: TaskValidationClient.ValidationResult(
+                                isValid = false,
+                                reason = "Gemini validation failed: ${result.exceptionOrNull()?.message ?: "Unknown error"}"
+                            )
+                            currentStep.value = EvaluationStep.COMPLETED
+                            if (results.value?.isValid == true) {
+                                onEvaluationComplete()
+                            }
+                        }
+
+                        // Animate steps while waiting for callback
+                        val allSteps = EvaluationStep.entries
+                        var currentStepInt = 0
+                        while (results.value == null) {
+                            delay(Random.nextInt(500, 2000).toLong())
+                            currentStep.value = EvaluationStep.valueOf(allSteps[currentStepInt].name)
+                            if (currentStepInt != EvaluationStep.EVALUATING.ordinal) currentStepInt++
+                        }
+                    }
+                }
+                else -> { // "cloud"
+                    currentStep.value = EvaluationStep.LOADING_MODEL
+                    val token = if (userRepository.userInfo.isAnonymous) {
+                        ""
+                    } else {
+                        Supabase.supabase.auth.currentAccessTokenOrNull()?.toString() ?: ""
+                    }
+
+                    if (token.isEmpty()) {
+                        results.value = TaskValidationClient.ValidationResult(
+                            isValid = false,
+                            reason = "Authentication required. Please log in or configure a private Gemini API Key / Local AI."
+                        )
+                        currentStep.value = EvaluationStep.COMPLETED
+                        return@launch
+                    }
+
+                    client.validateTask(
+                        compressedFile,
+                        aiQuest.taskDescription,
+                        aiQuest.features.joinToString(","),
+                        token
+                    ) { result ->
+                        results.value = result.getOrNull() ?: TaskValidationClient.ValidationResult(
+                            isValid = false,
+                            reason = "Online validation failed: ${result.exceptionOrNull()?.message ?: "Unknown error"}"
+                        )
+                        currentStep.value = EvaluationStep.COMPLETED
+                        if (results.value?.isValid == true) {
+                            onEvaluationComplete()
+                        }
+                    }
+
+                    // Animate steps while waiting for callback
+                    val allSteps = EvaluationStep.entries
+                    var currentStepInt = 0
+                    while (results.value == null) {
+                        delay(Random.nextInt(500, 2000).toLong())
+                        currentStep.value = EvaluationStep.valueOf(allSteps[currentStepInt].name)
+                        if (currentStepInt != EvaluationStep.EVALUATING.ordinal) currentStepInt++
+                    }
+                }
+            }
+        }
+    }
+
+    fun resetResults(){
+        isAiEvaluating.value = true
+        results.value = null
+    }
+
+
+    override fun onCleared() {
+        super.onCleared()
+        try {
+            isModelLoaded = false
+        } catch (e: Exception) {
+            android.util.Log.e("AiEvaluation", "Failed to close resources", e)
+        }
+    }
+
+
+}
+fun resizeAndCompressImage(file: java.io.File, maxSize: Int = 1080, quality: Int = 70): java.io.File {
+    val bitmap = android.graphics.BitmapFactory.decodeFile(file.absolutePath)
+
+    // Maintain aspect ratio
+    val ratio = bitmap.width.toFloat() / bitmap.height.toFloat()
+    val width: Int
+    val height: Int
+    if (ratio > 1) {
+        width = maxSize
+        height = (maxSize / ratio).toInt()
+    } else {
+        height = maxSize
+        width = (maxSize * ratio).toInt()
+    }
+
+    val scaledBitmap = bitmap.scale(width, height)
+
+    val compressedFile = java.io.File(file.parent, "compressed_upload.jpg")
+    val out = java.io.FileOutputStream(compressedFile)
+    scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, out)
+    out.flush()
+    out.close()
+
+    return compressedFile
+}
+

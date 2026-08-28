@@ -16,7 +16,7 @@ if (localPropertiesFile.exists()) {
 }
 
 android {
-    namespace = "nethical.questphone.backend"
+    namespace = "com.alhaq.amniquest.backend"
     compileSdk = 36
 
     defaultConfig {

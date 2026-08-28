@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "nethical.questphone.ai"
+    namespace = "com.alhaq.amniquest.ai"
     compileSdk = 36
 
     defaultConfig {
@@ -43,7 +43,7 @@ android {
         }
     }
 
-    ndkVersion = "29.0.13599879 rc2"
+    ndkVersion = "25.2.9519653"
 }
 
 dependencies {

@@ -1,4 +1,4 @@
-# Project: QuestPhone AI Validation System Fix & Improvements
+# Project: AmniQuest Architecture & System Improvements
 
 ## Architecture
 - `UserInfoScreen.kt` & `UserInfoViewModel`: Settings UI for preferring local AI, private Gemini key, or cloud server.

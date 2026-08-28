@@ -10,11 +10,11 @@ plugins {
 }
 
 android {
-    namespace = "neth.iecal.questphone"
+    namespace = "com.alhaq.amniquest"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "neth.iecal.questphone"
+        applicationId = "com.alhaq.amniquest"
         minSdk = 26
         targetSdk = 36
         versionCode = 32
