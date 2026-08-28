@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">QuestPhone</string>
+    <string name="app_name">AmniQuest</string>
     <string name="title_activity_health_perm">HealthPermActivity</string>
     <string name="title_activity_privacy_policy">PrivacyPolicyActivity</string>
     <string name="accessibility_permission_app_blocker">block app </string>

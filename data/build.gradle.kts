@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "nethical.questphone.data"
+    namespace = "com.alhaq.amniquest.data"
     compileSdk = 36
 
     defaultConfig {

@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="neth.iecal.questphone">
+    package="com.alhaq.amniquest">
 
     <application>
     </application>

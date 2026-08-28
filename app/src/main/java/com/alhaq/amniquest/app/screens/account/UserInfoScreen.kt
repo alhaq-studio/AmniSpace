@@ -1,0 +1,1032 @@
+package com.alhaq.amniquest.app.screens.account
+
+import android.app.Activity
+import android.app.ActivityManager
+import android.app.Application
+import android.content.Context
+import android.content.Intent
+import android.widget.Toast
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.material3.RadioButton
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
+
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.application
+import androidx.lifecycle.viewModelScope
+import androidx.navigation.NavController
+import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.alhaq.amniquest.OnboardActivity
+import com.alhaq.amniquest.R
+import com.alhaq.amniquest.app.navigation.RootRoute
+import com.alhaq.amniquest.app.screens.game.InventoryBox
+import com.alhaq.amniquest.app.screens.quest.stats.components.HeatMapChart
+import com.alhaq.amniquest.app.theme.LocalCustomTheme
+import com.alhaq.amniquest.backed.repositories.UserRepository
+import com.alhaq.amniquest.backed.triggerProfileSync
+import com.alhaq.amniquest.backed.triggerQuestSync
+import com.alhaq.amniquest.backend.BuildConfig
+import com.alhaq.amniquest.core.core.utils.formatNumber
+import com.alhaq.amniquest.data.UserInfo
+import com.alhaq.amniquest.data.game.InventoryItem
+import com.alhaq.amniquest.data.xpToLevelUp
+import java.io.File
+import javax.inject.Inject
+import com.alhaq.amniquest.backed.repositories.QuestRepository
+import com.alhaq.amniquest.backed.repositories.StatsRepository
+import com.alhaq.amniquest.backed.repositories.AppWidgetConfigDao
+import com.alhaq.amniquest.core.utils.BackupManager
+
+
+@HiltViewModel
+class UserInfoViewModel @Inject constructor(
+    application: Application,
+    val userRepository: UserRepository,
+    private val questRepository: QuestRepository,
+    private val statsRepository: StatsRepository,
+    private val widgetConfigDao: AppWidgetConfigDao
+) : AndroidViewModel(application) {
+
+    val userInfo: UserInfo = userRepository.userInfo
+    val totalXpForNextLevel = xpToLevelUp(userInfo.level)
+
+    val xpProgress = (userInfo.xp.toFloat() / totalXpForNextLevel )
+
+    val profilePicLink = if (userInfo.has_profile){
+        if(userInfo.isAnonymous){
+            val profileFile = File(application.filesDir, "profile")
+            profileFile.absolutePath
+        }else{
+            "${BuildConfig.SUPABASE_URL}/storage/v1/object/public/profile/${userRepository.getUserId()}/profile"
+        }
+    } else null
+
+    init {
+        triggerProfileSync(application,false)
+    }
+
+    fun getGeminiApiKey(): String {
+        val sp = getApplication<Application>().getSharedPreferences("private_settings", Context.MODE_PRIVATE)
+        return sp.getString("gemini_api_key", "") ?: ""
+    }
+
+    fun saveGeminiApiKey(key: String) {
+        val sp = getApplication<Application>().getSharedPreferences("private_settings", Context.MODE_PRIVATE)
+        sp.edit().putString("gemini_api_key", key).apply()
+    }
+
+    fun getValidationEngine(): String {
+        val sp = getApplication<Application>().getSharedPreferences("private_settings", Context.MODE_PRIVATE)
+        return sp.getString("validation_engine", "cloud") ?: "cloud"
+    }
+
+    fun saveValidationEngine(engine: String) {
+        val sp = getApplication<Application>().getSharedPreferences("private_settings", Context.MODE_PRIVATE)
+        sp.edit().putString("validation_engine", engine).apply()
+    }
+
+    fun getPrivacyModeEnabled(): Boolean {
+        val sp = getApplication<Application>().getSharedPreferences("private_settings", Context.MODE_PRIVATE)
+        return sp.getBoolean("habit_privacy_mode", false)
+    }
+
+    fun savePrivacyModeEnabled(enabled: Boolean) {
+        val sp = getApplication<Application>().getSharedPreferences("private_settings", Context.MODE_PRIVATE)
+        sp.edit().putBoolean("habit_privacy_mode", enabled).apply()
+    }
+
+    fun backupData(password: String? = null, onComplete: (String?) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val json = BackupManager.createBackup(
+                    getApplication(),
+                    userRepository,
+                    questRepository,
+                    statsRepository,
+                    widgetConfigDao,
+                    password
+                )
+                withContext(Dispatchers.Main) {
+                    onComplete(json)
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onComplete(null)
+                }
+            }
+        }
+    }
+
+    fun restoreData(backupJson: String, password: String? = null, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val success = BackupManager.restoreBackup(
+                getApplication(),
+                backupJson,
+                userRepository,
+                questRepository,
+                statsRepository,
+                widgetConfigDao,
+                password
+            )
+            withContext(Dispatchers.Main) {
+                onComplete(success)
+            }
+        }
+    }
+
+    fun mergeLocalDataToCloud(onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            try {
+                if (!userRepository.userInfo.isAnonymous) {
+                    com.alhaq.amniquest.backed.triggerProfileSync(getApplication(), true)
+                    com.alhaq.amniquest.backed.triggerQuestSync(getApplication(), true)
+                    onComplete(true)
+                } else {
+                    onComplete(false)
+                }
+            } catch (e: Exception) {
+                onComplete(false)
+            }
+        }
+    }
+
+    fun logOut(onLoggedOut: () -> Unit) {
+        viewModelScope.launch {
+            userRepository.signOut()
+            val activityManager = application.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            activityManager.clearApplicationUserData()
+            withContext(Dispatchers.Main) {
+                onLoggedOut()
+            }
+        }
+    }
+
+    fun onForcePull() {
+        if (!userInfo.isAnonymous) {
+            triggerProfileSync(application, true)
+            triggerQuestSync(application, true)
+        }
+    }
+
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun UserInfoScreen(viewModel: UserInfoViewModel = hiltViewModel(),navController: NavController) {
+    val context = LocalContext.current
+    val scrollState = rememberScrollState()
+
+    var isExportPasswordDialogVisible by remember { mutableStateOf(false) }
+    var isImportPasswordDialogVisible by remember { mutableStateOf(false) }
+    var pendingExportUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var pendingImportContent by remember { mutableStateOf<String?>(null) }
+    var isPrivacyModeEnabled by remember { mutableStateOf(viewModel.getPrivacyModeEnabled()) }
+
+    val backupLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json"),
+        onResult = { uri ->
+            uri?.let {
+                pendingExportUri = it
+                isExportPasswordDialogVisible = true
+            }
+        }
+    )
+
+    val restoreLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+        onResult = { uri ->
+            uri?.let {
+                try {
+                    val jsonStr = context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        inputStream.bufferedReader().use { it.readText() }
+                    }
+                    if (jsonStr != null) {
+                        val isEncrypted = !jsonStr.trim().startsWith("{")
+                        if (isEncrypted) {
+                            pendingImportContent = jsonStr
+                            isImportPasswordDialogVisible = true
+                        } else {
+                            viewModel.restoreData(jsonStr, null) { success ->
+                                if (success) {
+                                    Toast.makeText(context, "Backup restored successfully!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Failed to restore backup (invalid format?)", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Failed to read backup: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    )
+
+    var isGeminiKeyDialogVisible by remember { mutableStateOf(false) }
+    var isValidationEngineDialogVisible by remember { mutableStateOf(false) }
+
+    if (isGeminiKeyDialogVisible) {
+        GeminiKeyDialog(
+            currentKey = viewModel.getGeminiApiKey(),
+            onSave = { viewModel.saveGeminiApiKey(it) },
+            onDismiss = { isGeminiKeyDialogVisible = false }
+        )
+    }
+
+    if (isValidationEngineDialogVisible) {
+        ValidationEngineDialog(
+            currentEngine = viewModel.getValidationEngine(),
+            onSave = { engine ->
+                viewModel.saveValidationEngine(engine)
+                if (engine == "gemini_api" && viewModel.getGeminiApiKey().isEmpty()) {
+                    isGeminiKeyDialogVisible = true
+                }
+            },
+            onDismiss = { isValidationEngineDialogVisible = false }
+        )
+    }
+
+    if (isExportPasswordDialogVisible) {
+        BackupPasswordDialog(
+            title = "Export Backup",
+            confirmLabel = "Export",
+            onConfirm = { pwd ->
+                pendingExportUri?.let { uri ->
+                    viewModel.backupData(pwd.ifEmpty { null }) { jsonStr ->
+                        if (jsonStr != null) {
+                            try {
+                                context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                                    outputStream.write(jsonStr.toByteArray())
+                                }
+                                Toast.makeText(context, "Backup exported successfully!", Toast.LENGTH_SHORT).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Failed to write backup: ${e.message}", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            Toast.makeText(context, "Backup creation failed", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            },
+            onDismiss = { isExportPasswordDialogVisible = false }
+        )
+    }
+
+    if (isImportPasswordDialogVisible) {
+        BackupPasswordDialog(
+            title = "Decrypt Backup",
+            confirmLabel = "Decrypt & Restore",
+            onConfirm = { pwd ->
+                pendingImportContent?.let { content ->
+                    viewModel.restoreData(content, pwd.ifEmpty { null }) { success ->
+                        if (success) {
+                            Toast.makeText(context, "Backup restored successfully!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Failed to decrypt/restore backup (wrong password?)", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            },
+            onDismiss = { isImportPasswordDialogVisible = false }
+        )
+    }
+
+    Scaffold(containerColor = LocalCustomTheme.current.getRootColorScheme().surface,
+        contentWindowInsets = WindowInsets(0),
+        ) { innerPadding ->
+        Box(Modifier
+            .padding(innerPadding)
+
+        ) {
+            Box(Modifier.graphicsLayer {
+                translationY = -scrollState.value * 0.5f
+            }) {
+                LocalCustomTheme.current.ThemeObjects(innerPadding)
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp)
+                    .verticalScroll(scrollState)
+
+                ) {
+                Row(
+                    modifier = Modifier.padding( WindowInsets.statusBarsIgnoringVisibility.asPaddingValues()),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    // Profile Header
+                    Text(
+                        text = "Profile",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.weight(1f))
+
+                    Icon(
+                        painter = painterResource(R.drawable.outline_share_24),
+                        contentDescription = "Share Profile",
+                        modifier = Modifier.clickable(true, onClick = {
+                            if(!viewModel.userInfo.isAnonymous) {
+                                val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(
+                                        Intent.EXTRA_TEXT,
+                                        "https://questphone.app/@${viewModel.userInfo.username}"
+                                    )
+                                }
+                                val shareIntent =
+                                    Intent.createChooser(sendIntent, "Share Profile via")
+                                context.startActivity(shareIntent)
+                            }else{
+                                Toast.makeText(context,"You're profile is local", Toast.LENGTH_SHORT).show()
+                            }
+                        })
+                    )
+                    Spacer(Modifier.size(4.dp))
+                    Menu(
+                        isAnonymous = viewModel.userInfo.isAnonymous,
+                        navController = navController,
+                        onLogout = {
+                            viewModel.logOut {
+                                val intent = Intent(context, OnboardActivity::class.java)
+                                context.startActivity(intent)
+                                (context as Activity).finish()
+                            }
+                        },
+                        onForcePull = {
+                            viewModel.onForcePull()
+                        },
+                        onBackup = {
+                            backupLauncher.launch("questphone_backup.json")
+                        },
+                        onRestore = {
+                            restoreLauncher.launch(arrayOf("application/json"))
+                        },
+                        onConfigureGeminiKey = {
+                            isGeminiKeyDialogVisible = true
+                        },
+                        onConfigureEngine = {
+                            isValidationEngineDialogVisible = true
+                        },
+                        isPrivacyModeEnabled = isPrivacyModeEnabled,
+                        onTogglePrivacyMode = { enabled ->
+                            viewModel.savePrivacyModeEnabled(enabled)
+                            isPrivacyModeEnabled = enabled
+                            Toast.makeText(context, "Habit Privacy Mode: " + if (enabled) "Enabled" else "Disabled", Toast.LENGTH_SHORT).show()
+                        },
+                        onMergeOfflineData = {
+                            viewModel.mergeLocalDataToCloud { success ->
+                                if (success) {
+                                    Toast.makeText(context, "Offline data successfully synced to cloud!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Sync failed (check connectivity or account status)", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    )
+                }
+                Spacer(Modifier.size(32.dp))
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // Avatar
+                    Box(
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable{
+                                navController.navigate(RootRoute.SetupProfile.route)
+                            }
+                    ) {
+                        Image(
+                            painter = rememberAsyncImagePainter(
+
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(viewModel.profilePicLink)
+                                    .crossfade(true)
+                                    .error(R.drawable.baseline_person_24)
+                                    .placeholder(R.drawable.baseline_person_24)
+                                    .build(),
+                            ),
+                            contentDescription = "Avatar",
+                            Modifier.fillMaxSize(),
+                            colorFilter = if (viewModel.profilePicLink == null)
+                                ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
+                            else
+                                null,
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        "@${viewModel.userInfo.username}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Text(
+                        viewModel.userInfo.username,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+
+
+                    // Level Progress Bar
+                    Column(
+                        modifier = Modifier.width(250.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "Level ${viewModel.userInfo.level}",
+                                color = MaterialTheme.colorScheme.outline,
+                                fontSize = 12.sp
+                            )
+                            Text(
+                                "XP: ${viewModel.userInfo.xp} / ${viewModel.totalXpForNextLevel}",
+                                color = MaterialTheme.colorScheme.outline,
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(12.dp)
+                                .align(Alignment.CenterHorizontally)
+                        ) {
+                            LinearProgressIndicator(
+                                progress = { viewModel.xpProgress },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    // Stats Box
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = LocalCustomTheme.current.getExtraColorScheme().toolBoxContainer,
+                                shape = RoundedCornerShape(16.dp),
+                            )
+                            .alpha(0.7f),
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            StatItem(
+                                value = formatNumber(viewModel.userInfo.coins),
+                                label = "coins"
+                            )
+
+                            StatItem(
+                                value = "${formatNumber(viewModel.userInfo.streak.currentStreak)}d",
+                                label = "Streak"
+                            )
+
+                            StatItem(
+                                value = "${formatNumber(viewModel.userInfo.streak.longestStreak)}d",
+                                label = "Top Streak"
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(32.dp))
+                }
+                HeatMapChart(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+
+                InventoryBox(navController)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun Menu(
+    isAnonymous: Boolean,
+    navController: NavController,
+    onLogout: () -> Unit,
+    onForcePull: () -> Unit,
+    onBackup: () -> Unit,
+    onRestore: () -> Unit,
+    onConfigureGeminiKey: () -> Unit,
+    onConfigureEngine: () -> Unit,
+    isPrivacyModeEnabled: Boolean,
+    onTogglePrivacyMode: (Boolean) -> Unit,
+    onMergeOfflineData: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var isLogoutInfoVisible by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    IconButton(onClick = { expanded = true }) {
+        Icon(
+            imageVector = Icons.Default.MoreVert, // This is the 3-dot icon
+            contentDescription = "More Options"
+        )
+    }
+
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = { expanded = false }
+    ) {
+        DropdownMenuItem(
+            text = { Text("Log Out") },
+            onClick = {
+                isLogoutInfoVisible = true
+                expanded = false
+            }
+        )
+
+        DropdownMenuItem(
+            text = { Text("AI Validation Engine") },
+            onClick = {
+                onConfigureEngine()
+                expanded = false
+            }
+        )
+
+        DropdownMenuItem(
+            text = { Text("Private Gemini API Key") },
+            onClick = {
+                onConfigureGeminiKey()
+                expanded = false
+            }
+        )
+
+        DropdownMenuItem(
+            text = {
+                androidx.compose.foundation.layout.Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Habit Privacy Mode")
+                    androidx.compose.material3.Switch(
+                        checked = isPrivacyModeEnabled,
+                        onCheckedChange = {
+                            onTogglePrivacyMode(it)
+                            expanded = false
+                        }
+                    )
+                }
+            },
+            onClick = {
+                onTogglePrivacyMode(!isPrivacyModeEnabled)
+                expanded = false
+            }
+        )
+
+        if (!isAnonymous) {
+            DropdownMenuItem(
+                text = { Text("Sync Offline Data to Server") },
+                onClick = {
+                    onMergeOfflineData()
+                    expanded = false
+                }
+            )
+        }
+
+        DropdownMenuItem(
+            text = { Text("Export Local Backup") },
+            onClick = {
+                onBackup()
+                expanded = false
+            }
+        )
+
+        DropdownMenuItem(
+            text = { Text("Import Local Backup") },
+            onClick = {
+                onRestore()
+                expanded = false
+            }
+        )
+
+        DropdownMenuItem(
+            text = { Text("Communicate with us") },
+            onClick = {
+                navController.navigate(RootRoute.ShowSocials.route)
+                expanded = false
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("Donate") },
+            onClick = {
+                navController.navigate(RootRoute.ShowSocials.route)
+                expanded = false
+            }
+        )
+
+        DropdownMenuItem(
+            text = { Text("Open Tutorial") },
+            onClick = {
+                navController.navigate(RootRoute.ShowTutorials.route)
+                expanded = false
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("Share Crash Log") },
+            onClick = {
+                shareCrashLog(context)
+                expanded = false
+            }
+        )
+        DropdownMenuItem(
+            text = { Text("Force Pull from servers") },
+            onClick = {
+                onForcePull()
+                expanded = false
+            }
+        )
+    }
+
+    if (isLogoutInfoVisible) {
+        BasicAlertDialog(
+            {
+                isLogoutInfoVisible = false
+            }
+
+        ) {
+            Surface {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .width(IntrinsicSize.Min),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Are you sure you want to log out?",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    if (isAnonymous) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Text(
+                            text =
+                                "You will lose all your quests, progress, stats and everything if you log out.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Row(
+                        horizontalArrangement = Arrangement.End,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        TextButton(onClick = {
+                            isLogoutInfoVisible = false
+                        }) {
+                            Text("Cancel")
+                        }
+                        TextButton(onClick = {
+                            onLogout()
+                        }) {
+                            Text("Log Out", color = Color.Red)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun StatItem(
+    value: String,
+    label: String
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.headlineLarge
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.outline,
+
+        )
+    }
+}
+
+
+@Composable
+fun ActiveBoostsItem(
+    item: InventoryItem,
+    remaining: String,
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Item preview/icon
+            Box(
+                modifier = Modifier
+                    .size(60.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF2A2A2A)),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(item.icon),
+                    contentDescription = item.simpleName
+                )
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Item details
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = item.simpleName,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.baseline_timer_24),
+                        contentDescription = "Remaining Time",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = remaining,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
+            }
+
+
+        }
+    }
+}
+
+
+fun shareCrashLog(context: Context) {
+    val logFile = File(context.filesDir, "crash_log.txt")
+    if (!logFile.exists()) {
+        Toast.makeText(context, "No crash logs found", Toast.LENGTH_SHORT).show()
+        return
+    }
+
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", logFile)
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_SUBJECT, "Crash Log")
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+
+    context.startActivity(Intent.createChooser(intent, "Share Crash Log"))
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GeminiKeyDialog(
+    currentKey: String,
+    onSave: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var keyState by remember { mutableStateOf(currentKey) }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Gemini API Key") },
+        text = {
+            Column {
+                Text(
+                    "Enter your Google Gemini API Key for private offline AI validations. This key will be stored securely on your device.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                androidx.compose.material3.OutlinedTextField(
+                    value = keyState,
+                    onValueChange = { keyState = it },
+                    label = { Text("API Key") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onSave(keyState.trim())
+                onDismiss()
+            }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+fun BackupPasswordDialog(
+    title: String,
+    confirmLabel: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var password by remember { mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                Text(
+                    "Optional: Enter a password to encrypt/decrypt this backup. Leave blank to process as unencrypted.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                androidx.compose.material3.OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password (Optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onConfirm(password)
+                onDismiss()
+            }) {
+                Text(confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ValidationEngineDialog(
+    currentEngine: String,
+    onSave: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selectedEngine by remember { mutableStateOf(currentEngine) }
+    val options = listOf(
+        "cloud" to "AmniQuest Cloud Server",
+        "local" to "Local On-Device AI",
+        "gemini_api" to "Private Gemini API Key"
+    )
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("AI Validation Engine") },
+        text = {
+            Column(Modifier.selectableGroup()) {
+                options.forEach { (value, label) ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .selectable(
+                                selected = (value == selectedEngine),
+                                onClick = { selectedEngine = value },
+                                role = Role.RadioButton
+                            )
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = (value == selectedEngine),
+                            onClick = null
+                        )
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(start = 16.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onSave(selectedEngine)
+                onDismiss()
+            }) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+

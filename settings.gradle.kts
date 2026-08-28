@@ -25,7 +25,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "launcher"
+rootProject.name = "AmniQuest"
 include(":app")
 include(":core")
 include(":data")

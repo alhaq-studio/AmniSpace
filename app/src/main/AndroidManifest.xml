@@ -121,7 +121,7 @@
             android:enabled="true"
             android:exported="false" />
         <receiver
-            android:name="neth.iecal.questphone.core.utils.reminder.simpleAlarm.AlarmReceiver"
+            android:name="com.alhaq.amniquest.core.utils.reminder.simpleAlarm.AlarmReceiver"
             android:enabled="true"
             android:exported="false" />
 
@@ -169,7 +169,7 @@
         </provider>
 
         <service
-            android:name="neth.iecal.questphone.core.services.LockScreenService"
+            android:name="com.alhaq.amniquest.core.services.LockScreenService"
             android:exported="false"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
