@@ -6,12 +6,17 @@ import com.alhaq.amniquest.app.screens.launcher.PushProvider
 
 class PlayPushProvider : PushProvider {
     override fun getFCMToken(onTokenReceived: (String?) -> Unit) {
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (task.isSuccessful) {
-                onTokenReceived(task.result)
-            } else {
-                onTokenReceived(null)
+        try {
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    onTokenReceived(task.result)
+                } else {
+                    onTokenReceived(null)
+                }
             }
+        } catch (e: Exception) {
+            Log.e("PlayPushProvider", "Failed to retrieve FCM token: ${e.message}")
+            onTokenReceived(null)
         }
     }
 }
