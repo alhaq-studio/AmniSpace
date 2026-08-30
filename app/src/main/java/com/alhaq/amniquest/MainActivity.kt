@@ -197,8 +197,10 @@ class MainActivity : FragmentActivity() {
                     NavHost(
                         navController = navController,
                         startDestination = if(questId!=null) "${RootRoute.ViewQuest.route}${questId}" else RootRoute.HomeScreen.route,
-                        popEnterTransition = { fadeIn(animationSpec = tween(700)) },
-                        popExitTransition = { fadeOut(animationSpec = tween(700)) },
+                        enterTransition = { fadeIn(animationSpec = tween(200)) },
+                        exitTransition = { fadeOut(animationSpec = tween(200)) },
+                        popEnterTransition = { fadeIn(animationSpec = tween(200)) },
+                        popExitTransition = { fadeOut(animationSpec = tween(200)) },
                     ) {
 
                         composable(RootRoute.UserInfo.route) {
