@@ -2,8 +2,13 @@ package com.alhaq.amniquest
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.alhaq.amniquest.app.screens.components.FocusZenPulsarWidget
+import com.alhaq.amniquest.app.screens.components.HarmonicWaveWidget
 import com.alhaq.amniquest.app.screens.components.NeuralMeshAsymmetrical
 import com.alhaq.amniquest.app.screens.components.NeuralMeshSymmetrical
+import com.alhaq.amniquest.app.screens.components.PixelCompanionWidget
+import com.alhaq.amniquest.app.screens.components.PixelHourglassWidget
+import com.alhaq.amniquest.app.screens.components.QuestOrbitWidget
 import com.alhaq.amniquest.app.screens.quest.stats.components.HeatMapHomeScreenWrapper
 import com.alhaq.amniquest.app.theme.customThemes.BaseTheme
 import com.alhaq.amniquest.app.theme.customThemes.BonsaiTheme
@@ -27,6 +32,11 @@ val themes: Map<String, BaseTheme> = mapOf(
 const val HOME_WIDGET_PRICE = 30
 var homeWidgets: Map<String, @Composable (Modifier)-> Unit> = mapOf(
     "Heat Map" to { HeatMapHomeScreenWrapper(it) },
+    "Pixel Familiar" to { PixelCompanionWidget(it) },
+    "Pixel Hourglass" to { PixelHourglassWidget(it) },
+    "Focus Zen Pulsar" to { FocusZenPulsarWidget(it) },
+    "Quest Orbit" to { QuestOrbitWidget(it) },
+    "Harmonic Wave" to { HarmonicWaveWidget(it) },
     "Neural Mesh Symmetrical" to { NeuralMeshSymmetrical(it) },
     "Neural Mesh ASymmetrical" to { NeuralMeshAsymmetrical(it) },
 )

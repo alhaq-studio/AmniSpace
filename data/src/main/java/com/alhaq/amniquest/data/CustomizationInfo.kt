@@ -8,5 +8,5 @@ data class CustomizationInfo(
     var equippedTheme:String = "Pitch Black",
     var themeData: MutableMap<String, String> = mutableMapOf(),
 
-    var purchasedWidgets: HashSet<String> = hashSetOf("Heat Map"),
+    var purchasedWidgets: HashSet<String> = hashSetOf("Heat Map", "Pixel Familiar", "Focus Zen Pulsar"),
     var equippedWidget:String = "Heat Map", )
