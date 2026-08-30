@@ -30,4 +30,8 @@ data class CustomizationInfo(
 
     var hasUnlockedCustomWallpaper: Boolean = false,
     var customWallpaperPath: String? = null,
+    var isSupporter: Boolean = false,
+    var supporterTier: String? = null,
+    var supporterExpiry: Long = 0L,
+    var offlineLicenseKey: String? = null,
 )

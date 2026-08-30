@@ -20,10 +20,8 @@ import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.alhaq.amniquest.MainActivity
-import com.alhaq.amniquest.app.screens.account.SetupProfileScreen
 import com.alhaq.amniquest.app.screens.onboard.subscreens.BlockedAppsView
 import com.alhaq.amniquest.app.screens.onboard.subscreens.CalculateLifeStats
-import com.alhaq.amniquest.app.screens.onboard.subscreens.LoginOnboard
 import com.alhaq.amniquest.app.screens.onboard.subscreens.NotificationPerm
 import com.alhaq.amniquest.app.screens.onboard.subscreens.OverlayScreenPerm
 import com.alhaq.amniquest.app.screens.onboard.subscreens.ScheduleExactAlarmPerm
@@ -52,13 +50,10 @@ fun OnBoarderView(navController: NavHostController) {
     LaunchedEffect(Unit) {
         isTosAccepted.value = context.getSharedPreferences("terms", MODE_PRIVATE).getBoolean("isAccepted",false)
     }
-    val isNextEnabledLogin = rememberSaveable {mutableStateOf(false)}
-    val isNextEnabledSetupProfile = rememberSaveable {mutableStateOf(false)}
 
 
 
     val onboardingPages = mutableListOf(
-
         OnboardingContent.CustomPage(
             content = {
                 UsageAccessPerm()
@@ -69,7 +64,6 @@ fun OnBoarderView(navController: NavHostController) {
                 val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
                 context.startActivity(intent)
                 return@CustomPage false
-
             }
         ),
 
@@ -83,17 +77,12 @@ fun OnBoarderView(navController: NavHostController) {
                 val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
                 context.startActivity(intent)
                 return@CustomPage false
-
             }
         ),
         OnboardingContent.StandardPage(
             "We're here to save you",
-            "Do a Quest → Earn growth → Unlock your app"
+            "Do a Quest -> Earn growth -> Unlock your app"
         ),
-                OnboardingContent.CustomPage(
-            isNextEnabled = isNextEnabledLogin){ ->
-            LoginOnboard(isNextEnabledLogin, navController)
-        },
 
         OnboardingContent.CustomPage(
             content = {
@@ -143,13 +132,9 @@ fun OnBoarderView(navController: NavHostController) {
                 }else{
                     true
                 }
-
             }
         ),
 
-        OnboardingContent.CustomPage(isNextEnabled =  isNextEnabledSetupProfile) {
-            SetupProfileScreen(isNextEnabledSetupProfile)
-        },
         OnboardingContent.CustomPage {
             if(viewModel.getDistractingApps().isEmpty()){
                 SelectApps()

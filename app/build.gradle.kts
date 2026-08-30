@@ -144,6 +144,7 @@ dependencies {
 
     add("playImplementation", platform("com.google.firebase:firebase-bom:34.3.0"))
     add("playImplementation", "com.google.firebase:firebase-messaging")
+    add("playImplementation", libs.play.billing)
     add("fdroidImplementation",libs.onnxruntime.android)
     add("fdroidImplementation",project(":ai"))
 

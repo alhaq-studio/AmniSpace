@@ -74,6 +74,9 @@ import com.alhaq.amniquest.data.game.InventoryItem
 import com.alhaq.amniquest.data.game.StoreCategory
 import javax.inject.Inject
 
+import android.app.Activity
+import androidx.compose.material3.OutlinedTextField
+import com.alhaq.amniquest.billing.BillingManager
 import com.alhaq.amniquest.app.theme.backgrounds.CUSTOM_WALLPAPER_NAME
 import com.alhaq.amniquest.app.theme.backgrounds.CUSTOM_WALLPAPER_PRICE
 import com.alhaq.amniquest.app.theme.backgrounds.HomeBackgroundRenderer
@@ -82,9 +85,20 @@ import com.alhaq.amniquest.app.theme.backgrounds.availableBackgrounds
 
 @HiltViewModel
 class StoreViewModel @Inject constructor(
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val billingManager: BillingManager
 ): ViewModel() {
     var coins = userRepository.coinsState
+    val isSupporter = billingManager.isSupporter
+    val supporterTier = billingManager.supporterTier
+
+    fun purchaseSupporter(activity: Activity, productId: String, onComplete: (Boolean, String?) -> Unit) {
+        billingManager.launchBillingFlow(activity, productId, onComplete)
+    }
+
+    fun activateLicense(licenseKey: String, onComplete: (Boolean, String?) -> Unit) {
+        billingManager.activateOfflineLicense(licenseKey, onComplete)
+    }
 
     var selectedStoreCategory by mutableStateOf<StoreCategory>(StoreCategory.TOOLS)
         private set
@@ -171,6 +185,10 @@ fun StoreScreen(
     var selectedBackgroundItem by remember { mutableStateOf<String?>(null) }
     var showSuccessMessage by remember { mutableStateOf<Triple<String, String, ()-> Unit>?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val isSupporter by viewModel.isSupporter.collectAsState()
+    val supporterTier by viewModel.supporterTier.collectAsState()
+    var showLicenseDialog by remember { mutableStateOf(false) }
+    var licenseInputText by remember { mutableStateOf("") }
     val coins by viewModel.coins.collectAsState()
     // auto dismiss message
     showSuccessMessage?.let { message ->
@@ -249,6 +267,102 @@ fun StoreScreen(
                                 color = Color.LightGray,
                                 lineHeight = 16.sp
                             )
+                        }
+                    }
+                }
+
+                item {
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSupporter) Color(0xFF14241B) else Color(0xFF181A20)
+                        ),
+                        border = BorderStroke(1.dp, if (isSupporter) Color(0xFFC59B4E) else Color(0xFF2E3340)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isSupporter) "Patron Status: Active" else "AmniQuest Supporter Pass",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSupporter) Color(0xFFC59B4E) else Color.White
+                                )
+                                if (isSupporter) {
+                                    Text(
+                                        text = supporterTier ?: "PATRON",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF4ADE80)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (isSupporter)
+                                    "Thank you for supporting open-source development! All present and future artisan art drops and pixel themes are unlocked."
+                                else
+                                    "Unlock monthly creator art drops, pixel theme palettes, and directly support independent privacy-first development.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.LightGray,
+                                lineHeight = 16.sp
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            if (!isSupporter) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            (context as? Activity)?.let { act ->
+                                                viewModel.purchaseSupporter(act, "amniquest_monthly_supporter") { _, msg ->
+                                                    if (msg != null) {
+                                                        showSuccessMessage = Triple(msg, "OK") {}
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFFC59B4E),
+                                            contentColor = Color.Black
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Monthly ($4.99)", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            (context as? Activity)?.let { act ->
+                                                viewModel.purchaseSupporter(act, "amniquest_lifetime_founder") { _, msg ->
+                                                    if (msg != null) {
+                                                        showSuccessMessage = Triple(msg, "OK") {}
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFF0B532E),
+                                            contentColor = Color.White
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Lifetime ($19.99)", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(6.dp))
+                                OutlinedButton(
+                                    onClick = { showLicenseDialog = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    border = BorderStroke(1.dp, Color(0xFF4A5568))
+                                ) {
+                                    Text("Activate Offline License Key", color = Color.LightGray, fontSize = 12.sp)
+                                }
+                            }
                         }
                     }
                 }
@@ -449,6 +563,72 @@ fun StoreScreen(
                     price = price,
                     inventoryCount = 0
                 )
+            }
+
+            if (showLicenseDialog) {
+                Dialog(onDismissRequest = { showLicenseDialog = false }) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFF1E222B),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Text(
+                                "Activate Offline License",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Enter your cryptographic ECDSA license key (received via email or supporter pass) to activate completely offline.",
+                                color = Color.LightGray,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                            OutlinedTextField(
+                                value = licenseInputText,
+                                onValueChange = { licenseInputText = it },
+                                placeholder = { Text("Paste license key...", color = Color.Gray, fontSize = 12.sp) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = false,
+                                maxLines = 4
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                OutlinedButton(
+                                    onClick = { showLicenseDialog = false },
+                                    modifier = Modifier.padding(end = 8.dp)
+                                ) {
+                                    Text("Cancel", color = Color.LightGray)
+                                }
+                                Button(
+                                    onClick = {
+                                        viewModel.activateLicense(licenseInputText) { success, msg ->
+                                            if (msg != null) {
+                                                showSuccessMessage = Triple(msg, "OK") {}
+                                            }
+                                            if (success) {
+                                                showLicenseDialog = false
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFC59B4E),
+                                        contentColor = Color.Black
+                                    )
+                                ) {
+                                    Text("Activate", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
         }
