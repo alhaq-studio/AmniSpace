@@ -29,6 +29,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -69,9 +70,16 @@ import com.alhaq.amniquest.backed.repositories.UserRepository
 import com.alhaq.amniquest.core.core.utils.toHex
 import javax.inject.Inject
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.alhaq.amniquest.app.theme.backgrounds.CUSTOM_WALLPAPER_NAME
+import com.alhaq.amniquest.app.theme.backgrounds.HomeBackgroundRenderer
+import com.alhaq.amniquest.app.theme.backgrounds.saveCustomWallpaperFromUri
+
 enum class CustomizeCategory(val simpleName: String) {
     THEME("Theme"),
     HOME_WIDGET("Home Widget"),
+    WALLPAPERS("Wallpapers"),
 }
 
 @HiltViewModel
@@ -83,8 +91,11 @@ class CustomizeViewModel @Inject constructor(
 
     var purchasedThemes by mutableStateOf(userRepository.userInfo.customization_info.purchasedThemes.toList())
     var purchasedWidgets by mutableStateOf(userRepository.userInfo.customization_info.purchasedWidgets.toList())
+    var purchasedBackgrounds by mutableStateOf(userRepository.userInfo.customization_info.purchasedBackgrounds.toList())
     var equippedTheme by mutableStateOf(userRepository.userInfo.customization_info.equippedTheme)
     var equippedWidget by mutableStateOf(userRepository.userInfo.customization_info.equippedWidget)
+    var equippedBackground by mutableStateOf(userRepository.userInfo.customization_info.equippedBackground)
+    var customWallpaperPath by mutableStateOf(userRepository.userInfo.customization_info.customWallpaperPath)
 
     fun equipTheme(theme: String){
         equippedTheme = theme
@@ -99,6 +110,16 @@ class CustomizeViewModel @Inject constructor(
         userRepository.userInfo.customization_info.equippedWidget = key
         userRepository.saveUserInfo()
     }
+    fun equipBackground(bg: String){
+        equippedBackground = bg
+        userRepository.userInfo.customization_info.equippedBackground = bg
+        userRepository.saveUserInfo()
+    }
+    fun setCustomWallpaper(path: String){
+        customWallpaperPath = path
+        userRepository.userInfo.customization_info.customWallpaperPath = path
+        equipBackground(CUSTOM_WALLPAPER_NAME)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -111,8 +132,23 @@ fun CustomizeScreen(
     val context = LocalContext.current
     var selectedThemeItem by remember { mutableStateOf<BaseTheme?>(null) }
     var selectedWidgetItem by remember { mutableStateOf<String?>(null) }
+    var selectedBackgroundItem by remember { mutableStateOf<String?>(null) }
     var showSuccessMessage by remember { mutableStateOf<Triple<String, String, () -> Unit>?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val path = saveCustomWallpaperFromUri(context, uri)
+            if (path != null) {
+                viewModel.setCustomWallpaper(path)
+                showSuccessMessage = Triple("Custom Wallpaper updated", "Go Back", {
+                    navController.popBackStack()
+                })
+            }
+        }
+    }
 
     // auto dismiss message
     showSuccessMessage?.let { message ->
@@ -169,7 +205,7 @@ fun CustomizeScreen(
                                     isItemEquipped = i == viewModel.equippedTheme,
                                     onClick = { selectedThemeItem = themes[i]!! },
                                     name = it.name,
-                                    icon = R.drawable.customize,
+                                    icon = R.drawable.ic_customize,
                                     description = it.description,
                                 )
                             }
@@ -181,13 +217,25 @@ fun CustomizeScreen(
                         items(viewModel.purchasedWidgets) { i ->
                             homeWidgets[i]?.let {
                                 ItemCard(
-                                    isItemEquipped = i == viewModel.equippedTheme,
+                                    isItemEquipped = i == viewModel.equippedWidget,
                                     onClick = { selectedWidgetItem = i },
                                     name = i,
-                                    icon = R.drawable.customize,
+                                    icon = R.drawable.ic_customize,
                                     description = "",
                                 )
                             }
+                        }
+                    }
+
+                    CustomizeCategory.WALLPAPERS -> {
+                        items(viewModel.purchasedBackgrounds) { bgName ->
+                            ItemCard(
+                                isItemEquipped = bgName == viewModel.equippedBackground,
+                                onClick = { selectedBackgroundItem = bgName },
+                                name = bgName,
+                                icon = R.drawable.ic_customize,
+                                description = if (bgName == CUSTOM_WALLPAPER_NAME) "Your custom gallery photo" else "Handcrafted Wallpaper Art",
+                            )
                         }
                     }
                 }
@@ -253,6 +301,49 @@ fun CustomizeScreen(
                 description = "",
                 center = {
                     homeWidgets[it]?.invoke(Modifier.size(200.dp))
+                },
+            )
+        }
+        selectedBackgroundItem?.let { bgName ->
+            EquipThemeDialog(
+                onDismiss = { selectedBackgroundItem = null },
+                onEquip = {
+                    viewModel.equipBackground(bgName)
+                    showSuccessMessage = Triple("$bgName equipped", "Go Back", {
+                        navController.popBackStack()
+                    })
+                },
+                equippedItem = viewModel.equippedBackground,
+                title = bgName,
+                description = if (bgName == CUSTOM_WALLPAPER_NAME) "Custom photo wallpaper from your device gallery." else "Handcrafted minimal wallpaper for your home screen.",
+                center = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(180.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                        ) {
+                            HomeBackgroundRenderer(
+                                backgroundName = bgName,
+                                scale = 1.0f,
+                                offsetX = 0f,
+                                offsetY = 0f,
+                                dim = 0.2f,
+                                customWallpaperPath = viewModel.customWallpaperPath
+                            )
+                        }
+                        if (bgName == CUSTOM_WALLPAPER_NAME) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Button(
+                                onClick = { photoPickerLauncher.launch("image/*") },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Text("Choose Photo from Gallery")
+                            }
+                        }
+                    }
                 },
             )
         }

@@ -73,7 +73,7 @@ fun QuestCompletionDialog(coinReward: Int,xpReward:Int, onDismiss: () -> Unit) {
             }
             // Apply bounce animation to the coin image
             Image(
-                painter = painterResource(R.drawable.coin_icon),
+                painter = painterResource(R.drawable.ic_coin),
                 contentDescription = "coin",
                 modifier = Modifier
                     .size(50.dp)

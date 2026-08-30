@@ -217,7 +217,7 @@ fun LevelUpDialog(
                         ) {
                             if (coinReward > 0) {
                                 RewardItem(
-                                    icon = com.alhaq.amniquest.R.drawable.coin_icon,
+                                    icon = com.alhaq.amniquest.R.drawable.ic_coin,
                                     amount = coinReward,
                                     name = "Coins"
                                 )

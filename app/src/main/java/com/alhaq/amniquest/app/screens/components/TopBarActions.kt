@@ -43,13 +43,9 @@ fun TopBarActions(coins: Int,streak: Int,isCoinsVisible: Boolean = false, isStre
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Image(
-                    painter = painterResource(R.drawable.coin_icon),
+                    painter = painterResource(R.drawable.ic_coin),
                     contentDescription = "Coins",
                     modifier = Modifier.size(20.dp),
-                    colorFilter = ColorFilter.tint(
-                        LocalCustomTheme.current.getRootColorScheme().primary.copy(alpha = 0.5f),
-                        blendMode = BlendMode.Modulate // keeps underlying shading
-                    )
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
@@ -71,13 +67,9 @@ fun TopBarActions(coins: Int,streak: Int,isCoinsVisible: Boolean = false, isStre
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Image(
-                    painter = painterResource(R.drawable.streak),
+                    painter = painterResource(R.drawable.ic_streak),
                     contentDescription = "Streak",
                     modifier = Modifier.size(22.dp),
-                    colorFilter = ColorFilter.tint(
-                        LocalCustomTheme.current.getRootColorScheme().primary.copy(alpha = 0.5f),
-                        blendMode = BlendMode.Modulate // keeps underlying shading
-                    )
                 )
                 Spacer(Modifier.size(4.dp))
                 Text(

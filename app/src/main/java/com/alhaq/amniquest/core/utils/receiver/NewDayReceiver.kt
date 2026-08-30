@@ -56,7 +56,7 @@ class NewDayReceiver : BroadcastReceiver() {
         notificationManager.createNotificationChannel(channel)
 
         val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(com.alhaq.amniquest.R.drawable.streak)
+            .setSmallIcon(com.alhaq.amniquest.R.drawable.ic_streak)
             .setContentTitle(title)
             .setContentText(title)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)

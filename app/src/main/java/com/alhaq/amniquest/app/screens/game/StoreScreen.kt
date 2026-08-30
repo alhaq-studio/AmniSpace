@@ -27,6 +27,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -73,6 +74,12 @@ import com.alhaq.amniquest.data.game.InventoryItem
 import com.alhaq.amniquest.data.game.StoreCategory
 import javax.inject.Inject
 
+import com.alhaq.amniquest.app.theme.backgrounds.CUSTOM_WALLPAPER_NAME
+import com.alhaq.amniquest.app.theme.backgrounds.CUSTOM_WALLPAPER_PRICE
+import com.alhaq.amniquest.app.theme.backgrounds.HomeBackgroundRenderer
+import com.alhaq.amniquest.app.theme.backgrounds.WALLPAPER_PRICE
+import com.alhaq.amniquest.app.theme.backgrounds.availableBackgrounds
+
 @HiltViewModel
 class StoreViewModel @Inject constructor(
     private val userRepository: UserRepository
@@ -92,6 +99,8 @@ class StoreViewModel @Inject constructor(
         private set
 
     var homeWidgetList by mutableStateOf(homeWidgets.toList().filter { !userRepository.userInfo.customization_info.purchasedWidgets.contains(it.first) })
+
+    var backgroundList by mutableStateOf((availableBackgrounds + listOf(CUSTOM_WALLPAPER_NAME)).filter { !userRepository.userInfo.customization_info.purchasedBackgrounds.contains(it) })
 
     fun hasEnoughCoins(price:Int): Boolean {
         val userCoins = userRepository.userInfo.coins
@@ -137,6 +146,16 @@ class StoreViewModel @Inject constructor(
         userRepository.useCoins(HOME_WIDGET_PRICE)
         homeWidgetList = homeWidgetList.filter { item != it.first }
     }
+
+    fun purchaseBackground(item: String){
+        val price = if (item == CUSTOM_WALLPAPER_NAME) CUSTOM_WALLPAPER_PRICE else WALLPAPER_PRICE
+        userRepository.userInfo.customization_info.purchasedBackgrounds.add(item)
+        if (item == CUSTOM_WALLPAPER_NAME) {
+            userRepository.userInfo.customization_info.hasUnlockedCustomWallpaper = true
+        }
+        userRepository.useCoins(price)
+        backgroundList = backgroundList.filter { item != it }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -149,6 +168,7 @@ fun StoreScreen(
     var selectedInventoryItem by remember { mutableStateOf<InventoryItem?>(null) }
     var selectedWidgetItem by remember { mutableStateOf<Pair<String, @Composable (Modifier)-> Unit>?>(null) }
     var selectedThemeItem by remember { mutableStateOf<BaseTheme?>(null) }
+    var selectedBackgroundItem by remember { mutableStateOf<String?>(null) }
     var showSuccessMessage by remember { mutableStateOf<Triple<String, String, ()-> Unit>?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coins by viewModel.coins.collectAsState()
@@ -206,6 +226,33 @@ fun StoreScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                item {
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF181A20)
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFF2E3340)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "Open Source & Privacy First",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "100% offline and zero data tracking. Your purchases directly fund active open-source development and handmade art creations.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.LightGray,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+                }
+
                 when(viewModel.selectedStoreCategory){
                     StoreCategory.THEMES -> {
                         items(viewModel.themeList) { i ->
@@ -214,7 +261,7 @@ fun StoreScreen(
                                     onClick = { selectedThemeItem = themes[i]!! },
                                     title = it.name,
                                     description = it.description,
-                                    icon = R.drawable.customize,
+                                    icon = R.drawable.ic_customize,
                                     price = it.price,
                                 )
                             }
@@ -226,8 +273,20 @@ fun StoreScreen(
                                 onClick = { selectedWidgetItem = i },
                                 title = i.first,
                                 description = "",
-                                icon = R.drawable.customize,
+                                icon = R.drawable.ic_customize,
                                 price = HOME_WIDGET_PRICE,
+                            )
+                        }
+                    }
+                    StoreCategory.WALLPAPERS -> {
+                        items(viewModel.backgroundList) { bgName ->
+                            val price = if (bgName == CUSTOM_WALLPAPER_NAME) CUSTOM_WALLPAPER_PRICE else WALLPAPER_PRICE
+                            StoreItemCard(
+                                onClick = { selectedBackgroundItem = bgName },
+                                title = bgName,
+                                description = if (bgName == CUSTOM_WALLPAPER_NAME) "Unlock custom photo wallpaper picker from gallery" else "Handcrafted Wallpaper Art",
+                                icon = R.drawable.ic_customize,
+                                price = price,
                             )
                         }
                     }
@@ -356,6 +415,42 @@ fun StoreScreen(
                 )
             }
 
+            selectedBackgroundItem?.let { bgName ->
+                val price = if (bgName == CUSTOM_WALLPAPER_NAME) CUSTOM_WALLPAPER_PRICE else WALLPAPER_PRICE
+                PurchaseDialog(
+                    hasEnoughCoins = viewModel.hasEnoughCoins(price),
+                    userCoins = coins,
+                    onDismiss = { selectedBackgroundItem = null },
+                    onPurchase = {
+                        viewModel.purchaseBackground(bgName)
+                        showSuccessMessage =
+                            Triple("Successfully purchased $bgName!", "Customize", {
+                                navController.navigate(RootRoute.Customize.route)
+                            })
+                        selectedBackgroundItem = null
+                    },
+                    center = {
+                        Box(
+                            modifier = Modifier
+                                .size(180.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                        ) {
+                            HomeBackgroundRenderer(
+                                backgroundName = bgName,
+                                scale = 1.0f,
+                                offsetX = 0f,
+                                offsetY = 0f,
+                                dim = 0.2f
+                            )
+                        }
+                    },
+                    title = bgName,
+                    description = if (bgName == CUSTOM_WALLPAPER_NAME) "Unlock the ability to select any photo from your gallery as your wallpaper with full zoom, pan, and contrast controls." else "Unlock the $bgName handcrafted wallpaper for your home screen.",
+                    price = price,
+                    inventoryCount = 0
+                )
+            }
+
         }
     }
 }
@@ -480,7 +575,7 @@ private fun StoreItemCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Image(
-                    painter = painterResource(R.drawable.coin_icon),
+                    painter = painterResource(R.drawable.ic_coin),
                     contentDescription = "Coins",
                     modifier = Modifier.size(20.dp)
                 )
@@ -558,7 +653,7 @@ private fun PurchaseDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Image(
-                        painter = painterResource(R.drawable.coin_icon),
+                        painter = painterResource(R.drawable.ic_coin),
                         contentDescription = "Coins",
                         modifier = Modifier.size(20.dp)
                     )

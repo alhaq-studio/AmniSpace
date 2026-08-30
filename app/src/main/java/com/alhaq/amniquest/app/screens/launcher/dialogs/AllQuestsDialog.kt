@@ -158,7 +158,7 @@ fun AllQuestsDialog(
                     shape = CircleShape,
                 ) {
                     Icon(
-                        painter = painterResource(com.alhaq.amniquest.R.drawable.baseline_gamepad_24),
+                        painter = painterResource(com.alhaq.amniquest.R.drawable.ic_quest_deep_focus),
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier

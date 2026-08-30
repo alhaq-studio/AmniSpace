@@ -194,7 +194,7 @@ fun SetIntegration(navController: NavHostController, viewModel: SetIntegrationVM
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Image(
-                                            painter = painterResource(R.drawable.coin_icon),
+                                            painter = painterResource(R.drawable.ic_coin),
                                             contentDescription = "Coins",
                                             modifier = Modifier.size(20.dp)
                                         )

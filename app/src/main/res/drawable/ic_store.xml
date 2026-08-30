@@ -1,0 +1,25 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Store Roof / Awning -->
+    <path
+        android:fillColor="#EC4899"
+        android:pathData="M3,5 L21,5 L19,9 L5,9 Z" />
+
+    <!-- Awning Scallops / Accent -->
+    <path
+        android:fillColor="#F472B6"
+        android:pathData="M3,9 C3,10.1 3.9,11 5,11 C6.1,11 7,10.1 7,9 L8.5,9 C8.5,10.1 9.4,11 10.5,11 C11.6,11 12.5,10.1 12.5,9 L14,9 C14,10.1 14.9,11 16,11 C17.1,11 18,10.1 18,9 L19,9 C19,10.1 19.9,11 21,11 L21,9 Z" />
+
+    <!-- Store Front Pillars & Body -->
+    <path
+        android:fillColor="#DB2777"
+        android:pathData="M4,11 L4,20 C4,20.55 4.45,21 5,21 L19,21 C19.55,21 20,20.55 20,20 L20,11 L18,11 L18,19 L6,19 L6,11 Z" />
+
+    <!-- Door / Counter -->
+    <path
+        android:fillColor="#FDF2F8"
+        android:pathData="M9,14 L15,14 L15,19 L9,19 Z" />
+</vector>

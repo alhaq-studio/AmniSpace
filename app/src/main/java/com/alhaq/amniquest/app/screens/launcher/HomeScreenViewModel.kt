@@ -28,6 +28,7 @@ import com.alhaq.amniquest.backed.repositories.UserRepository
 import com.alhaq.amniquest.core.utils.managers.QuestHelper
 import com.alhaq.amniquest.core.utils.scheduleDailyNotification
 import com.alhaq.amniquest.data.CommonQuestInfo
+import com.alhaq.amniquest.data.CustomizationInfo
 import com.alhaq.amniquest.homeWidgets
 import com.alhaq.amniquest.core.core.utils.getCurrentDate
 import com.alhaq.amniquest.core.core.utils.getCurrentDay
@@ -125,8 +126,18 @@ class HomeScreenViewModel @Inject constructor(
         }
     }
 
+    val customizationInfo = mutableStateOf(userRepository.userInfo.customization_info)
+
     fun getHomeWidget(): @Composable ((Modifier) -> Unit)? {
-        return homeWidgets[userRepository.userInfo.customization_info.equippedWidget]
+        return homeWidgets[customizationInfo.value.equippedWidget]
+    }
+
+    fun updateCustomizationInfo(info: CustomizationInfo) {
+        userRepository.userInfo.customization_info = info
+        userRepository.saveUserInfo()
+        customizationInfo.value = info
+        is12HourClock = !info.is24Hr
+        reloadTime()
     }
 
     suspend fun filterQuests() {
