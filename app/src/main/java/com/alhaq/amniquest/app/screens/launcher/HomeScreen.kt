@@ -204,7 +204,6 @@ fun HomeScreen(
     )
 
     var isAllQuestsDialogVisible by remember { mutableStateOf(false) }
-    var isActionTriggered by remember { mutableStateOf(false) }
 
     val infiniteTransition = rememberInfiniteTransition(label = "floating")
     val swipeIconAnimation by infiniteTransition.animateFloat(
@@ -229,7 +228,6 @@ fun HomeScreen(
     DisposableEffect(lifecycleOwner, context) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                isActionTriggered = false
                 isDoubleTapToSleepEnabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && isAccessibilityServiceEnabled(
                     context,
                     LockScreenService::class.java
@@ -250,7 +248,10 @@ fun HomeScreen(
     }
 
 
-    BackHandler(navController != null) { }
+    BackHandler(isAppSelectorVisible || isAllQuestsDialogVisible) {
+        if (isAppSelectorVisible) isAppSelectorVisible = false
+        if (isAllQuestsDialogVisible) isAllQuestsDialogVisible = false
+    }
 
     if (showDonationDialog) {
         DonationsDialog {
@@ -310,24 +311,22 @@ fun HomeScreen(
                             totalDragX += dragAmount.x
                             totalDragY += dragAmount.y
 
-                            if (!gestureHandled && !isActionTriggered) {
+                            if (!gestureHandled) {
                                 val absX = abs(totalDragX)
                                 val absY = abs(totalDragY)
 
-                                if (absY > absX && absY > 35f) {
-                                    if (totalDragY < -35f) {
+                                if (absY > absX && absY > 28f) {
+                                    if (totalDragY < -28f) {
                                         // Swipe UP -> App List
                                         gestureHandled = true
-                                        isActionTriggered = true
                                         change.consume()
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                         navController?.navigate(RootRoute.AppList.route) {
                                             launchSingleTop = true
                                         }
-                                    } else if (totalDragY > 45f) {
+                                    } else if (totalDragY > 40f) {
                                         // Swipe DOWN -> Notification Panel
                                         gestureHandled = true
-                                        isActionTriggered = true
                                         change.consume()
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                         try {
@@ -344,11 +343,10 @@ fun HomeScreen(
                                             )
                                         }
                                     }
-                                } else if (absX > absY && absX > 35f) {
-                                    if (totalDragX < -35f) {
+                                } else if (absX > absY && absX > 28f) {
+                                    if (totalDragX < -28f) {
                                         // Swipe LEFT -> Widget Screen
                                         gestureHandled = true
-                                        isActionTriggered = true
                                         change.consume()
                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                         navController?.navigate(RootRoute.WidgetScreen.route) {
@@ -435,20 +433,16 @@ fun HomeScreen(
                             }
                         }
 
-                        LazyColumn(
-                            contentPadding = PaddingValues(vertical = 4.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                            userScrollEnabled = false,
-
-                            ) {
-                            items(questList.size) { index ->
-                                val baseQuest = questList[index]
+                        Column(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            questList.forEach { baseQuest ->
                                 val isFailed = QuestHelper.isTimeOver(baseQuest)
-
                                 val isCompleted = completedQuests.contains(baseQuest.id)
                                 val isHidden = isPrivacyModeEnabled && !isPrivateQuestsUnlocked
                                 Text(
-                                    text = if (isHidden) "🔒 Hidden Quest" else baseQuest.title,
+                                    text = if (isHidden) "Hidden Quest" else baseQuest.title,
                                     fontWeight = FontWeight.ExtraLight,
                                     fontSize = 23.sp,
                                     color = if (isFailed && !isCompleted) smoothRed else MaterialTheme.colorScheme.onSurface,
@@ -469,40 +463,38 @@ fun HomeScreen(
                                     )
                                 )
                             }
-                            item {
-                                Text(
-                                    text = LocalCustomTheme.current.expandQuestsText,
-                                    fontWeight = FontWeight.ExtraLight,
-                                    fontSize = 15.sp,
-                                    modifier = Modifier.clickable(
-                                        onClick = {
-                                            isAllQuestsDialogVisible = true
-                                        },
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = ripple(bounded = false)
-                                    )
+                            Text(
+                                text = LocalCustomTheme.current.expandQuestsText,
+                                fontWeight = FontWeight.ExtraLight,
+                                fontSize = 15.sp,
+                                modifier = Modifier.clickable(
+                                    onClick = {
+                                        isAllQuestsDialogVisible = true
+                                    },
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = ripple(bounded = false)
                                 )
+                            )
 
-                                if (!isSetToDefaultLauncher(context)) {
+                            if (!isSetToDefaultLauncher(context)) {
+                                Spacer(Modifier.size(8.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.clickable(onClick = {
+                                        openDefaultLauncherSettings(context)
+                                    })
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.baseline_info_24),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(30.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
                                     Spacer(Modifier.size(8.dp))
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.clickable(onClick = {
-                                            openDefaultLauncherSettings(context)
-                                        })
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(R.drawable.baseline_info_24),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(30.dp),
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                        Spacer(Modifier.size(8.dp))
-                                        Text(
-                                            text = "Set AmniQuest as your default launcher for the best experience",
-                                            fontSize = 15.sp,
-                                        )
-                                    }
+                                    Text(
+                                        text = "Set AmniQuest as your default launcher for the best experience",
+                                        fontSize = 15.sp,
+                                    )
                                 }
                             }
                         }
@@ -518,38 +510,34 @@ fun HomeScreen(
                         ),
                     horizontalAlignment = Alignment.End
                 ) {
-                    LazyColumn(
+                    Column(
                         modifier = Modifier
                             .background(
                                 color = LocalCustomTheme.current.getExtraColorScheme().toolBoxContainer,
                                 shape = RoundedCornerShape(16.dp)
                             )
                             .padding(15.dp),
-                        userScrollEnabled = false,
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-
-
-                        items(sidePanelItems) {
+                        sidePanelItems.forEach { item ->
                             Box(
                                 modifier = Modifier
                                     .size(35.dp)
                                     .clickable(
-                                        onClick = { it.onClick() },
+                                        onClick = { item.onClick() },
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = ripple(bounded = false)
-
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Image(
-                                    painter = painterResource(it.icon),
-                                    contentDescription = it.contentDesc,
+                                    painter = painterResource(item.icon),
+                                    contentDescription = item.contentDesc,
                                     modifier = Modifier.size(28.dp),
                                     colorFilter = ColorFilter.tint(
                                         LocalCustomTheme.current.getRootColorScheme().primary.copy(alpha = 0.5f),
-                                        blendMode = BlendMode.Modulate // keeps underlying shading
+                                        blendMode = BlendMode.Modulate
                                     )
                                 )
                             }
@@ -567,54 +555,47 @@ fun HomeScreen(
                         ),
                     horizontalAlignment = Alignment.End
                 ) {
-
-                    LazyColumn(
+                    Column(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         horizontalAlignment = Alignment.End
                     ) {
                         if (shortcuts.isEmpty()) {
-                            item{
-                                TextButton(onClick = {
-                                    isAppSelectorVisible = true
-                                }) {
-                                    Row {
-                                        Icon(
-                                            imageVector = Icons.Default.Add,
-                                            contentDescription = "Add Shortcuts"
-                                        )
-                                        Spacer(Modifier.size(4.dp))
-                                        Text(
-                                            text = "Add Shortcuts",
-                                            fontWeight = FontWeight.ExtraLight,
-                                            fontSize = 23.sp
-                                        )
-                                    }
+                            TextButton(onClick = {
+                                isAppSelectorVisible = true
+                            }) {
+                                Row {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Shortcuts"
+                                    )
+                                    Spacer(Modifier.size(4.dp))
+                                    Text(
+                                        text = "Add Shortcuts",
+                                        fontWeight = FontWeight.ExtraLight,
+                                        fontSize = 23.sp
+                                    )
                                 }
                             }
-
                         }
-                        item{
-
-                            Text(
-                                text = "Screentime",
-                                fontWeight = FontWeight.ExtraLight,
-                                fontSize = 23.sp,
-                                textAlign = TextAlign.End,
-                                modifier = Modifier
-                                    .wrapContentWidth()
-                                    .combinedClickable(onClick = {
-                                        navController?.navigate(RootRoute.ShowScreentimeStats.route)
-                                    }, onLongClick = {
-                                        isAppSelectorVisible = true
-                                    })
-                            )
-                        }
-                        itemsIndexed(shortcuts) { index, it ->
+                        Text(
+                            text = "Screentime",
+                            fontWeight = FontWeight.ExtraLight,
+                            fontSize = 23.sp,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier
+                                .wrapContentWidth()
+                                .combinedClickable(onClick = {
+                                    navController?.navigate(RootRoute.ShowScreentimeStats.route)
+                                }, onLongClick = {
+                                    isAppSelectorVisible = true
+                                })
+                        )
+                        shortcuts.forEach { pkg ->
                             val name = try {
-                                val appInfo = context.packageManager.getApplicationInfo(it, 0)
+                                val appInfo = context.packageManager.getApplicationInfo(pkg, 0)
                                 appInfo.loadLabel(context.packageManager).toString()
                             } catch (_: Exception) {
-                                it
+                                pkg
                             }
 
                             Text(
@@ -625,10 +606,7 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .wrapContentWidth()
                                     .combinedClickable(onClick = {
-                                        val intent =
-                                            context.packageManager.getLaunchIntentForPackage(
-                                                it
-                                            )
+                                        val intent = context.packageManager.getLaunchIntentForPackage(pkg)
                                         intent?.let { context.startActivity(it) }
                                     }, onLongClick = {
                                         isAppSelectorVisible = true
@@ -640,7 +618,7 @@ fun HomeScreen(
 
                 Icon(
                     imageVector = Icons.Default.KeyboardArrowUp,
-                    contentDescription =  if(navController!=null || LocalCustomTheme.current.docLink == null) "Swipe up" else "Click to read perks",
+                    contentDescription = if(navController!=null || LocalCustomTheme.current.docLink == null) "Swipe up" else "Click to read perks",
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .offset(y = swipeIconAnimation.dp)
@@ -648,6 +626,15 @@ fun HomeScreen(
                             bottom = WindowInsets.navigationBarsIgnoringVisibility.asPaddingValues()
                                 .calculateBottomPadding() * 2
                         )
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                            navController?.navigate(RootRoute.AppList.route) {
+                                launchSingleTop = true
+                            }
+                        }
                 )
 
             }
