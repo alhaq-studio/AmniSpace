@@ -14,9 +14,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import kotlin.math.abs
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -202,7 +204,7 @@ fun HomeScreen(
     )
 
     var isAllQuestsDialogVisible by remember { mutableStateOf(false) }
-    var isScreenSwitched by remember { mutableStateOf(false) }
+    var isActionTriggered by remember { mutableStateOf(false) }
 
     val infiniteTransition = rememberInfiniteTransition(label = "floating")
     val swipeIconAnimation by infiniteTransition.animateFloat(
@@ -227,6 +229,7 @@ fun HomeScreen(
     DisposableEffect(lifecycleOwner, context) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                isActionTriggered = false
                 isDoubleTapToSleepEnabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && isAccessibilityServiceEnabled(
                     context,
                     LockScreenService::class.java
@@ -283,75 +286,81 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .pointerInput(Unit) {
-                    var verticalDragOffset = 0f
+                    var totalDragX = 0f
+                    var totalDragY = 0f
+                    var gestureHandled = false
 
-                    detectVerticalDragGestures(
+                    detectDragGestures(
                         onDragStart = {
-                            // Reset offset when drag starts
-                            verticalDragOffset = 0f
+                            totalDragX = 0f
+                            totalDragY = 0f
+                            gestureHandled = false
                         },
-                        onVerticalDrag = { change, dragAmount ->
-                            change.consume()
-                            verticalDragOffset += dragAmount
-                            val swipeThresholdAppList = -50f // Increased for more deliberate swipe
-                            if (verticalDragOffset < swipeThresholdAppList) {
-                                if (!isScreenSwitched) {
-                                    isScreenSwitched = true
-                                    navController?.navigate(RootRoute.AppList.route) {
-                                        restoreState = true
-                                    }
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                }
-                                return@detectVerticalDragGestures
-                            }
-                            val swipeThresholdWidgets = 50f // Increased for more deliberate swipe
-                            if (verticalDragOffset > swipeThresholdWidgets) {
-                                if (!isScreenSwitched) {
-                                    try {
-                                        context.getSystemService("statusbar")?.let { service ->
-                                            val statusbarManager = Class.forName("android.app.StatusBarManager")
-                                            val expand: Method = statusbarManager.getMethod("expandNotificationsPanel")
-                                            expand.invoke(service)
+                        onDragEnd = {
+                            totalDragX = 0f
+                            totalDragY = 0f
+                            gestureHandled = false
+                        },
+                        onDragCancel = {
+                            totalDragX = 0f
+                            totalDragY = 0f
+                            gestureHandled = false
+                        },
+                        onDrag = { change, dragAmount ->
+                            totalDragX += dragAmount.x
+                            totalDragY += dragAmount.y
+
+                            if (!gestureHandled && !isActionTriggered) {
+                                val absX = abs(totalDragX)
+                                val absY = abs(totalDragY)
+
+                                if (absY > absX && absY > 35f) {
+                                    if (totalDragY < -35f) {
+                                        // Swipe UP -> App List
+                                        gestureHandled = true
+                                        isActionTriggered = true
+                                        change.consume()
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        navController?.navigate(RootRoute.AppList.route) {
+                                            launchSingleTop = true
                                         }
-                                    } catch (e: Exception) {
-                                        Log.e(
-                                            "HomeScreen",
-                                            "Error opening notification panel.",
-                                            e
-                                        )
+                                    } else if (totalDragY > 45f) {
+                                        // Swipe DOWN -> Notification Panel
+                                        gestureHandled = true
+                                        isActionTriggered = true
+                                        change.consume()
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        try {
+                                            context.getSystemService("statusbar")?.let { service ->
+                                                val statusbarManager = Class.forName("android.app.StatusBarManager")
+                                                val expand: Method = statusbarManager.getMethod("expandNotificationsPanel")
+                                                expand.invoke(service)
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.e(
+                                                "HomeScreen",
+                                                "Error opening notification panel.",
+                                                e
+                                            )
+                                        }
                                     }
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                }
-                            }
-                            return@detectVerticalDragGestures
-
-                        },
-                    )
-                }
-                .pointerInput(Unit) {
-                    var horizontalDragOffset = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = {
-                            horizontalDragOffset = 0f
-                        },
-                        onHorizontalDrag = { change, dragAmount ->
-                            change.consume()
-                            horizontalDragOffset += dragAmount
-                            val swipeThresholdAppList = -50f // Increased for more deliberate swipe
-                            if (horizontalDragOffset < swipeThresholdAppList) {
-                                if (!isScreenSwitched) {
-                                    isScreenSwitched = true
-                                    navController?.navigate(RootRoute.WidgetScreen.route) {
-                                        restoreState = true
+                                } else if (absX > absY && absX > 35f) {
+                                    if (totalDragX < -35f) {
+                                        // Swipe LEFT -> Widget Screen
+                                        gestureHandled = true
+                                        isActionTriggered = true
+                                        change.consume()
+                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        navController?.navigate(RootRoute.WidgetScreen.route) {
+                                            launchSingleTop = true
+                                        }
                                     }
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                 }
-                                return@detectHorizontalDragGestures
                             }
                         }
                     )
                 }
-                .pointerInput(Unit) {
+                .pointerInput(isDoubleTapToSleepEnabled) {
                     detectTapGestures(
                         onDoubleTap = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && isDoubleTapToSleepEnabled) {
