@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Ice Shield Body -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M12,2 L19,5 C19,13.5 12,19.5 12,22 C12,19.5 5,13.5 5,5 Z" />
+
+    <!-- Snowflake / Frost Crystal Core -->
+    <path
+        android:fillColor="#F0F9FF"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.2"
+        android:strokeLineCap="round"
+        android:pathData="M12,7 L12,17 M7,12 L17,12 M8.5,8.5 L15.5,15.5 M8.5,15.5 L15.5,8.5" />
+</vector>

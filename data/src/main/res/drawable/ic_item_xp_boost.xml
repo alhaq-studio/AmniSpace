@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Outer Rocket / Surge Hexagon -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M12,2 L20,7 L20,17 L12,22 L4,17 L4,7 Z" />
+
+    <!-- Upward Surge Double Chevrons -->
+    <path
+        android:fillColor="#FEF3C7"
+        android:pathData="M12,6 L17,11 L15.6,12.4 L12,8.8 L8.4,12.4 L7,11 Z" />
+    <path
+        android:fillColor="#FEF3C7"
+        android:pathData="M12,12 L17,17 L15.6,18.4 L12,14.8 L8.4,18.4 L7,17 Z" />
+</vector>

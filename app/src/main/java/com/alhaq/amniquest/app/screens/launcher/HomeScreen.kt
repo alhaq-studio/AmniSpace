@@ -19,6 +19,9 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import kotlin.math.abs
+import com.alhaq.amniquest.app.screens.launcher.dialogs.HomeStudioDialog
+import com.alhaq.amniquest.app.theme.backgrounds.HomeBackgroundRenderer
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -177,33 +180,36 @@ fun HomeScreen(
 
     val sidePanelItems = listOf<SidePanelItem>(
         SidePanelItem(
-            R.drawable.profile_d,
+            R.drawable.ic_profile,
             { navController?.navigate(RootRoute.UserInfo.route) },
             "Profile"
         ),
         SidePanelItem(
-            R.drawable.customize,
+            R.drawable.ic_customize,
             { navController?.navigate(RootRoute.Customize.route) },
             "Customize"
         ),
         SidePanelItem(
-            R.drawable.store,
+            R.drawable.ic_store,
             { navController?.navigate(RootRoute.Store.route) },
             "Store"
         ),
         SidePanelItem(
-            com.alhaq.amniquest.data.R.drawable.quest_analytics,
+            com.alhaq.amniquest.data.R.drawable.ic_analytics,
             { navController?.navigate(RootRoute.ListAllQuest.route) },
             "Quest Analytics"
         ),
         SidePanelItem(
-            com.alhaq.amniquest.data.R.drawable.quest_adderpng,
+            com.alhaq.amniquest.data.R.drawable.ic_quest_add,
             { navController?.navigate(RootRoute.SelectTemplates.route) },
             "Add Quest"
         )
     )
 
     var isAllQuestsDialogVisible by remember { mutableStateOf(false) }
+    var isHomeStudioVisible by remember { mutableStateOf(false) }
+
+    val customizationInfo by viewModel.customizationInfo
 
     val infiniteTransition = rememberInfiniteTransition(label = "floating")
     val swipeIconAnimation by infiniteTransition.animateFloat(
@@ -248,9 +254,10 @@ fun HomeScreen(
     }
 
 
-    BackHandler(isAppSelectorVisible || isAllQuestsDialogVisible) {
+    BackHandler(isAppSelectorVisible || isAllQuestsDialogVisible || isHomeStudioVisible) {
         if (isAppSelectorVisible) isAppSelectorVisible = false
         if (isAllQuestsDialogVisible) isAllQuestsDialogVisible = false
+        if (isHomeStudioVisible) isHomeStudioVisible = false
     }
 
     if (showDonationDialog) {
@@ -278,6 +285,21 @@ fun HomeScreen(
                 onDismiss = { isAllQuestsDialogVisible = false },
                 rootNavController = navController,
                 startDestination = LauncherDialogRoutes.ShowAllQuest.route
+            )
+        }
+        if (isHomeStudioVisible) {
+            HomeStudioDialog(
+                customizationInfo = customizationInfo,
+                onDismiss = { isHomeStudioVisible = false },
+                onSave = { updated ->
+                    viewModel.updateCustomizationInfo(updated)
+                },
+                onOpenStore = {
+                    navController?.navigate(RootRoute.Store.route)
+                },
+                onOpenCustomize = {
+                    navController?.navigate(RootRoute.Customize.route)
+                }
             )
         }
 
@@ -379,10 +401,22 @@ fun HomeScreen(
                                     }
                                 }
                             }
+                        },
+                        onLongPress = {
+                            isHomeStudioVisible = true
+                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                         }
                     )
                 }
         ) {
+            HomeBackgroundRenderer(
+                backgroundName = customizationInfo.equippedBackground,
+                scale = customizationInfo.bgScale,
+                offsetX = customizationInfo.bgOffsetX,
+                offsetY = customizationInfo.bgOffsetY,
+                dim = customizationInfo.bgDim,
+                customWallpaperPath = customizationInfo.customWallpaperPath
+            )
             LocalCustomTheme.current.ThemeObjects(innerPadding)
             Box(modifier = Modifier.fillMaxSize()) {
                 Column(Modifier.padding(WindowInsets.statusBarsIgnoringVisibility.asPaddingValues())) {
@@ -391,7 +425,15 @@ fun HomeScreen(
                     Column(
                         Modifier.padding(8.dp)
                     ) {
-                        Box {
+                        Box(
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = customizationInfo.widgetScale
+                                scaleY = customizationInfo.widgetScale
+                                translationX = customizationInfo.widgetOffsetX
+                                translationY = customizationInfo.widgetOffsetY
+                                alpha = customizationInfo.widgetAlpha
+                            }
+                        ) {
                             viewModel.getHomeWidget()?.invoke(
                                 Modifier.size(
                                     200.dp
@@ -399,13 +441,27 @@ fun HomeScreen(
                             )
                         }
                         Spacer(Modifier.size(12.dp))
+
+                        val clockFontWeight = when (customizationInfo.clockStyle) {
+                            "Light" -> FontWeight.Light
+                            "Regular" -> FontWeight.Normal
+                            "Bold" -> FontWeight.Bold
+                            "Black" -> FontWeight.Black
+                            else -> FontWeight.Black
+                        }
+
                         Text(
                             time,
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Black,
-                            modifier = Modifier.combinedClickable(onClick = {},onLongClick = {
-                                viewModel.toggleTimeCLock()
-                            })
+                            fontSize = customizationInfo.clockSizeSp.sp,
+                            fontWeight = clockFontWeight,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.combinedClickable(
+                                onClick = {},
+                                onLongClick = {
+                                    isHomeStudioVisible = true
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                }
+                            )
                         )
                         Text(
                             "Today's Quests",

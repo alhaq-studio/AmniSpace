@@ -50,7 +50,7 @@ enum class IntegrationId(
      * Useful when user wants to block access to his phone and focus on some irl task like studying
      */
     DEEP_FOCUS(
-        icon = R.drawable.deep_focus_icon,
+        icon = R.drawable.ic_quest_deep_focus,
         label = "Deep Focus",
         description = "Block all apps except the essential ones for a set period, allowing you to stay focused on your work.",
         setupScreen = {id,navController -> SetDeepFocus(id, navController) },
@@ -60,7 +60,7 @@ enum class IntegrationId(
 
 
     HEALTH_CONNECT(
-        icon = R.drawable.health_icon,
+        icon = R.drawable.ic_quest_health,
         label = "Health Connect",
         description = "Earn coins for performing health related stuff like steps, water intake and more",
         setupScreen = { id,navController ->
@@ -73,7 +73,7 @@ enum class IntegrationId(
     ),
 
     SWIFT_MARK(
-        icon = R.drawable.swift_mark_icon,
+        icon = R.drawable.ic_quest_swift_mark,
         label = "Swift Mark",
         description = "Just mark it as done and earn coins instantly. No verification needed—your honesty is the key!",
         setupScreen = {id,navController ->
@@ -92,7 +92,7 @@ enum class IntegrationId(
     ),
 
     AI_SNAP(
-        icon = R.drawable.ai_snap_icon,
+        icon = R.drawable.ic_quest_ai_snap,
         label = "AI verified Snap",
         description = "Complete the task, snap a pic, and let AI verify your progress!",
         setupScreen = {id, navController ->

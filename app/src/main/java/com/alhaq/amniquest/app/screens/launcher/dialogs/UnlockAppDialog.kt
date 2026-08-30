@@ -57,7 +57,7 @@ fun UnlockAppDialog(
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Image(
-                painter = painterResource(R.drawable.coin_icon),
+                painter = painterResource(R.drawable.ic_coin),
                 contentDescription = "Coins",
                 modifier = Modifier.size(20.dp),
             )

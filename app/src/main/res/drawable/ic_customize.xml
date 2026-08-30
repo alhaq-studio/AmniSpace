@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Palette Outline -->
+    <path
+        android:fillColor="#8B5CF6"
+        android:pathData="M12,2 C6.48,2 2,6.48 2,12 C2,16.5 5.5,20.2 10,20.9 C10.55,21 11,20.55 11,20 C11,19.5 10.75,19 10.75,18.5 C10.75,17.4 11.65,16.5 12.75,16.5 L14.5,16.5 C17.53,16.5 20,14.03 20,11 C20,6.03 16.42,2 12,2 Z" />
+
+    <!-- Color Dots -->
+    <path
+        android:fillColor="#F472B6"
+        android:pathData="M6.5,11.5 A1.5,1.5 0 1 0 6.5,8.5 A1.5,1.5 0 1 0 6.5,11.5 Z" />
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M9.5,7 A1.5,1.5 0 1 0 9.5,4 A1.5,1.5 0 1 0 9.5,7 Z" />
+    <path
+        android:fillColor="#4ADE80"
+        android:pathData="M14.5,7 A1.5,1.5 0 1 0 14.5,4 A1.5,1.5 0 1 0 14.5,7 Z" />
+    <path
+        android:fillColor="#FBBF24"
+        android:pathData="M17.5,11.5 A1.5,1.5 0 1 0 17.5,8.5 A1.5,1.5 0 1 0 17.5,11.5 Z" />
+</vector>
