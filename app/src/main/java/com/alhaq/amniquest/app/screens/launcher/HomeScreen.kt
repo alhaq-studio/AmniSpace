@@ -234,7 +234,7 @@ fun HomeScreen(
     DisposableEffect(lifecycleOwner, context) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                isDoubleTapToSleepEnabled = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && isAccessibilityServiceEnabled(
+                isDoubleTapToSleepEnabled = com.alhaq.amniquest.BuildConfig.IS_FDROID && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && isAccessibilityServiceEnabled(
                     context,
                     LockScreenService::class.java
                 )
@@ -385,7 +385,7 @@ fun HomeScreen(
                         onDoubleTap = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && isDoubleTapToSleepEnabled) {
                                 performLockScreenAction()
-                            } else {
+                            } else if (com.alhaq.amniquest.BuildConfig.IS_FDROID) {
                                 scope.launch {
                                     snackbarHostState.showSnackbar(
                                         message = "Enable Accessibility Service to use double-tap to sleep.",

@@ -239,6 +239,17 @@ class UserRepository @Inject constructor(
         } ?: UserInfo()
     }
 
+    fun saveUserInfo() {
+        val sharedPreferences = context.getSharedPreferences("user_info", Context.MODE_PRIVATE)
+        sharedPreferences.edit {
+            putString("user_info", json.encodeToString(UserInfo.serializer(), userInfo))
+        }
+    }
+
+    fun updateUser() {
+        saveUserInfo()
+    }
+
     private fun deleteLocalUserInfoCache(){
         val sharedPreferences = context.getSharedPreferences("user_info", Context.MODE_PRIVATE)
         sharedPreferences.edit { remove("user_info") }
