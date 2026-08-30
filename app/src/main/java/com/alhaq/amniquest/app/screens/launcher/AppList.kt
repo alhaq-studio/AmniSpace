@@ -84,8 +84,11 @@ fun AppList(navController: NavController, viewModel: AppListViewModel) {
                        if(textFieldLoaded) {
                            keyboardController?.hide()
                        }
-                       navController.navigate(RootRoute.HomeScreen.route){
-                           restoreState = true
+                       if (!navController.popBackStack()) {
+                           navController.navigate(RootRoute.HomeScreen.route) {
+                               launchSingleTop = true
+                               popUpTo(RootRoute.HomeScreen.route) { inclusive = true }
+                           }
                        }
                    }
                 }

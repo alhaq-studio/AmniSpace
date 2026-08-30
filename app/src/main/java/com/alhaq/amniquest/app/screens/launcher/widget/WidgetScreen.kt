@@ -91,8 +91,11 @@ fun WidgetScreen(
                         if (available.y > 0 && listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0) {
                             if (!pulledDownHard) {
                                 pulledDownHard = true
-                                navController.navigate(RootRoute.HomeScreen.route) {
-                                    restoreState = true
+                                if (!navController.popBackStack()) {
+                                    navController.navigate(RootRoute.HomeScreen.route) {
+                                        launchSingleTop = true
+                                        popUpTo(RootRoute.HomeScreen.route) { inclusive = true }
+                                    }
                                 }
                             }
                         }
