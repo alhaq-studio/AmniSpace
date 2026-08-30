@@ -30,20 +30,20 @@ class OnboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val data = getSharedPreferences("onboard", MODE_PRIVATE)
+        if (data.getBoolean("onboard", false)) {
+            val intent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            startActivity(intent)
+            finish()
+            return
+        }
+
         enableEdgeToEdge()
 
         val pitchBlackTheme = PitchBlackTheme()
         setContent {
-            val data = getSharedPreferences("onboard", MODE_PRIVATE)
-            val isUserOnboarded = remember {mutableStateOf(true)}
-            isUserOnboarded.value = data.getBoolean("onboard",false)
-            Log.d("onboard", isUserOnboarded.value.toString())
-
-            if(isUserOnboarded.value) {
-                val intent = Intent(this, MainActivity::class.java)
-                startActivity(intent)
-                finish()
-            }
 
             val context = LocalContext.current
 

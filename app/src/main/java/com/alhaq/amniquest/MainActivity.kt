@@ -89,10 +89,19 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val data = getSharedPreferences("onboard", MODE_PRIVATE)
+        if (!data.getBoolean("onboard", false)) {
+            val intent = Intent(this, OnboardActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            startActivity(intent)
+            finish()
+            return
+        }
+
         handleNotificationIntent(intent)
         val questId = intent.getStringExtra("quest_id")
         enableEdgeToEdge()
-        val data = getSharedPreferences("onboard", MODE_PRIVATE)
         val notificationScheduler = NotificationScheduler(applicationContext,questRepository)
         val modelSp = getSharedPreferences("models", Context.MODE_PRIVATE)
 
