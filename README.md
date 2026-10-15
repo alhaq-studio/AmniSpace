@@ -1,7 +1,7 @@
-# AmniQuest (AmniSpace)
+# AmniQuest v0.0.1 (Amn Ecosystem)
 
 > [!NOTE]
-> **Project Heritage**: AmniQuest is an open-source, modernized focus launcher and quest utility developed under **Al-Haq Studio** as part of the **Amn Ecosystem**. It is maintained with an emphasis on privacy, offline-first execution, on-device AI verification, high performance, and mindful screen time.
+> **Project Heritage & Rebuild**: AmniQuest is a fresh rebuild, complete redesign, and fork of [QuestPhone](https://github.com/QuestPhone/questphone) originally created by **Nethical**. It is maintained under **Al-Haq Studio** as part of the **Amn Ecosystem**, with versioning restarting fresh from **v0.0.1**, focusing on privacy, offline-first execution, on-device AI verification, and mindful screen time.
 
 **AmniQuest** is an open-source Android productivity utility and minimal launcher designed to help users combat screen addiction by gamifying habit-forming and app-blocking workflows. Distracting apps remain blocked until you successfully complete your real-life quests.
 
@@ -41,6 +41,9 @@ Click on any image to enlarge.
 
 ## Tech Stack & Architecture
 
+> [!NOTE]
+> For a comprehensive breakdown of the project architecture, multi-module structure, product flavors (`play` vs `fdroid`), app blocker foreground service, and AI validation pipelines, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 - **UI & State**: Jetpack Compose, Material Design 3, Dagger Hilt.
 - **Database & Sync**: Room (SQLite), Supabase Auth & Database Sync.
 - **On-Device AI Engine**:
@@ -79,6 +82,17 @@ To build and compile both build variants:
 > [!NOTE]
 > **JNI Configuration on Windows**:
 > [CMakeLists.txt](file:///d:/PROJECTS/QuestPhone/ai/src/main/cpp/CMakeLists.txt) references `src/` and `src/builtin_pb/` explicitly to ensure correct native builds on Windows.
+
+---
+
+## Roadmap
+
+- **v0.1.0**: Quantized Vision Performance (SigLIP ONNX memory & speed optimizations).
+- **v0.2.0**: Advanced Interactive Home Screen AppWidgets.
+- **v0.3.0**: Wear OS Companion App support.
+- **v0.4.0**: Optional Peer Accountability & Encrypted Challenges via Supabase.
+
+For detailed project milestones and architecture, see [PROJECT.md](PROJECT.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 

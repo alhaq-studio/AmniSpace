@@ -2,11 +2,10 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-
-    kotlin("plugin.serialization") version "2.0.20"
-    id("com.google.devtools.ksp")
-    id("com.google.dagger.hilt.android")
-    id("com.google.gms.google-services")
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -17,8 +16,8 @@ android {
         applicationId = "com.alhaq.amniquest"
         minSdk = 26
         targetSdk = 36
-        versionCode = 32
-        versionName = "2.7.1"
+        versionCode = 1
+        versionName = "0.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
