@@ -1,4 +1,4 @@
-# AmniQuest v0.0.1 (Amn Ecosystem)
+# AmniQuest v0.0.1 (Amni Ecosystem)
 
 > [!NOTE]
 > **Project Heritage & Rebuild**: AmniQuest is a fresh rebuild, complete redesign, and fork of [QuestPhone](https://github.com/QuestPhone/questphone) originally created by **Nethical**. It is maintained under **Al-Haq Studio** as part of the **Amn Ecosystem**, with versioning restarting fresh from **v0.0.1**, focusing on privacy, offline-first execution, on-device AI verification, and mindful screen time.
