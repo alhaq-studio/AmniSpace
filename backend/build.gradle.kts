@@ -4,8 +4,15 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.ksp)
+    kotlin("plugin.serialization") version "2.0.20"
+    id("com.google.devtools.ksp")
+
+}
+
+val envProperties = Properties()
+val envFile = rootProject.file(".env")
+if (envFile.exists()) {
+    envProperties.load(FileInputStream(envFile))
 }
 
 val localProperties = Properties()
@@ -14,8 +21,18 @@ if (localPropertiesFile.exists()) {
     localProperties.load(FileInputStream(localPropertiesFile))
 }
 
+val supabaseUrl = envProperties.getProperty("SUPABASE_URL")
+    ?: localProperties.getProperty("SUPABASE_URL")
+    ?: "https://questphone.supabase.co"
+val supabaseApiKey = envProperties.getProperty("SUPABASE_API_KEY")
+    ?: localProperties.getProperty("SUPABASE_API_KEY")
+    ?: "public-anon-key"
+val apiUrl = envProperties.getProperty("API_URL")
+    ?: localProperties.getProperty("API_URL")
+    ?: "https://questphone.app"
+
 android {
-    namespace = "com.alhaq.amniquest.backend"
+    namespace = "nethical.questphone.backend"
     compileSdk = 36
 
     defaultConfig {
@@ -24,10 +41,9 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
 
-
-        buildConfigField("String", "SUPABASE_URL", "\"${localProperties["SUPABASE_URL"]}\"")
-        buildConfigField("String", "SUPABASE_API_KEY", "\"${localProperties["SUPABASE_API_KEY"]}\"")
-        buildConfigField("String", "API_URL", "\"${localProperties["API_URL"]}\"")
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_API_KEY", "\"$supabaseApiKey\"")
+        buildConfigField("String", "API_URL", "\"$apiUrl\"")
     }
 
     buildTypes {

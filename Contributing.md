@@ -69,7 +69,6 @@ val apiKey = BuildConfig.SUPABASE_API_KEY
 
 ## 🛠️ Tips for Contributors
 
-* **Read the Architecture Guide**: Review [ARCHITECTURE.md](ARCHITECTURE.md) to understand the multi-module layout, app blocker foreground service, and AI validation pipelines.
 * Open an issue first if you're planning a major change.
 * Keep pull requests focused and limited to a single change.
 * Run and test the app before submitting a PR.

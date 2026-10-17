@@ -1,74 +1,23 @@
-# Project: AmniQuest v0.0.1 Architecture & System Blueprint
+# Project: QuestPhone AI Validation System Fix & Improvements
 
-## Overview
-**AmniQuest v0.0.1** (developed under Al-Haq Studio as part of the Amni Ecosystem) is a fresh rebuild, complete redesign, and fork of [QuestPhone](https://github.com/QuestPhone/questphone) originally created by **Nethical**. It is an open-source, privacy-first Android minimal launcher and habit gamification framework engineered to combat screen addiction by locking distracting applications behind real-life quests verified through on-device AI or external cloud integrations.
+## Architecture
+- `UserInfoScreen.kt` & `UserInfoViewModel`: Settings UI for preferring local AI, private Gemini key, or cloud server.
+- `AiSnapQuestViewVM.kt` (play): Evaluation VM for the Google Play variant.
+- `AiSnapQuestViewVM.kt` (fdroid): Evaluation VM for the F-Droid variant.
+- `LocalGeminiNanoValidator.kt`: Wrapper for system-level Gemini Nano via AICore.
+- `GeminiValidator.kt`: Multi-modal validation via private Gemini API key (Gemini 2.5 Flash).
+- `TaskValidationClient` (defined in `AiSnapValidator.kt`): Server-based validation fallback.
 
-For detailed technical specifications, module breakdowns, and data flow diagrams, refer to [ARCHITECTURE.md](ARCHITECTURE.md).
+## Milestones
+| # | Name | Scope | Dependencies | Status |
+|---|------|-------|-------------|--------|
+| 1 | Settings UI control | Implement a setting selector in UserInfoScreen / UserInfoViewModel to select preferred AI validation engine. If "Private Gemini Key" is selected, prompt for API key. | None | DONE |
+| 2 | VM logic alignment | Update AiSnapQuestViewVM in play/fdroid to respect selected engine preference (Local AI, Private Key, Cloud Server). | M1 | DONE |
+| 3 | Error Fallbacks & Dialogs | Gracefully handle unavailable engines (e.g. Gemini Nano not supported, SigLIP model not downloaded) with user-friendly dialogs/error message. | M2 | DONE |
+| 4 | E2E Verification & Compile | Build and compile both play and fdroid variants successfully. Verify stability and no crashes. | M3 | DONE |
 
----
-
-## 1. Multi-Module Project Structure
-
-| Module | Type | Primary Responsibilities |
-| :--- | :--- | :--- |
-| **`:app`** | Android Application | Jetpack Compose presentation layer, navigation graph, ViewModels, `AppBlockerService`, AppWidget hosts, and distribution flavors (`play`, `fdroid`). |
-| **`:core`** | Android Library | Background utility services, app blocking logic, screentime usage stats helpers, notification schedulers, backup manager, and crash logging. |
-| **`:data`** | Android Library | Domain data models, Kotlinx Serialization contracts, Room SQLite database schemas (`CommonQuestInfo`, `StatsInfo`, `ReminderData`), and local preferences. |
-| **`:backend`** | Android Library | Ktor HTTP client, Supabase Auth/Storage/Postgrest integration, remote task validation endpoints, and Gemini API client. |
-| **`:ai`** | Android Library | Native C++ SentencePiece tokenizer wrapper compiled via CMake and NDK, providing local NLP tokenization for F-Droid SigLIP ONNX models. |
-
----
-
-## 2. Core Architecture & Logic Highlights
-
-### A. Foreground App Blocker Service (`AppBlockerService`)
-- Operates as a persistent Foreground Service (`specialUse` / `dataSync`) utilizing `UsageStatsManager` to poll active foreground apps every **100ms**.
-- Intercepts launches of user-locked apps or active Deep Focus sessions, redirecting the user to `MainActivity` to enforce quest completion or biometric verification.
-
-### B. Multi-Tier AI Validation Chain (`AiSnapQuestViewVM`)
-Supports four distinct validation backends configurable via user preferences (`validation_engine`):
-1. **Local Gemini Nano**: On-device LLM prompt evaluation via Google `AICore` (`LocalGeminiNanoValidator.kt`).
-2. **Private Gemini API Key**: Direct multimodal calls to `Gemini 2.5 Flash` using the user's personal API key (`GeminiValidator.kt`).
-3. **Cloud Server Validation**: Remote validation endpoint authenticated via Supabase JWT (`AiSnapValidator.kt`).
-4. **Local SigLIP (F-Droid)**: Offline zero-shot image classification using ONNX Runtime and native SentencePiece JNI tokenization.
-
-### C. Offline-First Storage & Supabase Sync
-- **Room SQLite Databases**: Single source of truth for quests, screentime stats, coin transactions, and reminders.
-- **Background Synchronization**: `WorkManager` workers (`QuestSyncWorker`, `StatsSyncWorker`, `BackupWorker`) handle rolling encrypted AES-256 local backups and offline-to-cloud Supabase synchronization.
-
-### D. Gamification & Custom Themes
-- **Economy & Progression**: Quest completion awards XP, coin currency, and streak milestones with automatic streak freezers.
-- **Virtual Companion**: Pet/companion system whose vitality responds to habit consistency.
-- **Custom Themes**: 7 immersive themes (Cyberpunk, Nordic Frost, Solarized Sunset, Cherry Blossoms, Hacker, Pitch Black, Bonsai) with custom canvas shaders and particle animations.
-
----
-
-## 3. Product Distribution Flavors
-
-- **`play` (Google Play Store)**:
-  - Includes Google Play Billing Library and Firebase Cloud Messaging (FCM).
-  - Utilizes system-level Gemini Nano (`AICore`) and Cloud/Private Gemini API validation.
-- **`fdroid` (F-Droid FOSS)**:
-  - Replaces Play Billing with F-Droid direct billing manager.
-  - Bundles ONNX Runtime Android and `:ai` native SentencePiece JNI for 100% offline-first SigLIP vision evaluation.
-
----
-
-## 4. Development Milestones & Roadmap
-
-### v0.0.1 Baseline Release (Completed)
-| # | Milestone | Scope | Status |
-|---|-----------|-------|--------|
-| 1 | Multi-Module Clean Architecture | Modularize app into `:app`, `:core`, `:data`, `:backend`, and `:ai` | **COMPLETED** |
-| 2 | Multi-Tier AI Validation Chain | Integrate Local Gemini Nano, Private Gemini API, Cloud API, and SigLIP ONNX | **COMPLETED** |
-| 3 | Foreground App Blocker | 100ms UsageStats polling service with Deep Focus mode | **COMPLETED** |
-| 4 | Gamification & Theme Suite | Leveling, streak management, coin store, virtual pet, and 7 canvas themes | **COMPLETED** |
-| 5 | Enhanced Backup & Biometric Lock | AES-256-CBC encrypted backups via WorkManager and biometric habit privacy mode | **COMPLETED** |
-
-### Future Roadmap
-| Version | Target Feature / Initiative | Description | Status |
-| :--- | :--- | :--- | :--- |
-| **v0.1.0** | Quantized Vision Performance | Further memory and inference speed optimizations for F-Droid SigLIP ONNX models on budget devices. | Planned |
-| **v0.2.0** | Advanced Widget Ecosystem | Interactive home screen AppWidgets for quick habit logging, streak tracking, and focus timers. | In Design |
-| **v0.3.0** | Wear OS Companion App | Smartwatch companion app for quick habit check-ins and active focus session monitoring. | Planned |
-| **v0.4.0** | Peer Accountability Network | Optional encrypted friend challenges and streak sharing via Supabase Realtime. | Exploring |
+## Interface Contracts
+### Preferences Settings
+- SharedPreferences `"private_settings"`:
+  - `"validation_engine"`: String (`"local"`, `"gemini_api"`, `"cloud"`), default `"cloud"`.
+  - `"gemini_api_key"`: String (user's private API key).

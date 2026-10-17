@@ -1,0 +1,6 @@
+{
+  "name": "QuestPhone",
+  "description": "Gamified minimalist launcher and phone detox app with quests, focus sessions, and streak management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
