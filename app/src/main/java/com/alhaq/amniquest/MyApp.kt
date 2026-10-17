@@ -15,7 +15,7 @@ import com.alhaq.amniquest.core.core.utils.VibrationHelper
 import javax.inject.Inject
 
 
-@HiltAndroidApp(Application::class)
+@HiltAndroidApp
 class MyApp : Application() {
 
     private lateinit var connectivityManager: ConnectivityManager
