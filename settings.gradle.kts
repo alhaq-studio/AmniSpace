@@ -25,9 +25,8 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AmniQuest"
+rootProject.name = "QuestPhone"
 include(":app")
 include(":core")
 include(":data")
-include(":ai")
 include(":backend")

@@ -2,41 +2,40 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.ksp)
-    alias(libs.plugins.hilt)
-    alias(libs.plugins.google.services)
+
+    kotlin("plugin.serialization") version "2.0.20"
+    id("com.google.devtools.ksp")
+    id("com.google.dagger.hilt.android")
+    id("com.google.gms.google-services")
 }
 
 android {
-    namespace = "com.alhaq.amniquest"
+    namespace = "neth.iecal.questphone"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.alhaq.amniquest"
+        applicationId = "com.aistudio.questphone.kqvztr"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.0.1"
+        versionCode = 32
+        versionName = "2.7.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("Boolean", "IS_FDROID", "false")
     }
 
-    flavorDimensions += "distribution"
-
-    productFlavors {
-        create("fdroid") {
-            dimension = "distribution"
-            versionNameSuffix = "-fdroid"
-            buildConfigField("Boolean", "IS_FDROID", "true")
+    signingConfigs {
+        create("debugConfig") {
+            storeFile = file("${rootDir}/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
         }
-        create("play") {
-            dimension = "distribution"
-            versionNameSuffix = "-play"
-            buildConfigField("Boolean", "IS_FDROID", "false")
-        }
-
     }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debugConfig")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -46,6 +45,7 @@ android {
         }
     }
     compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
     kotlinOptions {
@@ -54,31 +54,12 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
-
     }
     dependenciesInfo {
         // Disables dependency metadata when building APKs.
         includeInApk = false
         // Disables dependency metadata when building Android App Bundles.
         includeInBundle = false
-    }
-
-    packaging {
-        jniLibs {
-            useLegacyPackaging = false
-        }
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
-
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
-            isUniversalApk = true
-        }
     }
 }
 
@@ -141,11 +122,8 @@ dependencies {
     implementation("com.google.ai.edge.aicore:aicore:0.0.1-exp01")
     implementation("androidx.biometric:biometric:1.2.0-alpha05")
 
-    add("playImplementation", platform("com.google.firebase:firebase-bom:34.3.0"))
-    add("playImplementation", "com.google.firebase:firebase-messaging")
-    add("playImplementation", libs.play.billing)
-    add("fdroidImplementation",libs.onnxruntime.android)
-    add("fdroidImplementation",project(":ai"))
+    implementation(platform("com.google.firebase:firebase-bom:34.3.0"))
+    implementation("com.google.firebase:firebase-messaging")
 
     implementation(project(":data"))
     implementation(project(":core"))

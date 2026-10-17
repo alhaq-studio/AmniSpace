@@ -1,28 +1,31 @@
-# AmniQuest v0.0.1 (Amni Ecosystem)
+# QuestPhone
 
 > [!NOTE]
-> **Project Heritage & Rebuild**: AmniQuest is a fresh rebuild, complete redesign, and fork of [QuestPhone](https://github.com/QuestPhone/questphone) originally created by **Nethical**. It is maintained under **Al-Haq Studio** as part of the **Amn Ecosystem**, with versioning restarting fresh from **v0.0.1**, focusing on privacy, offline-first execution, on-device AI verification, and mindful screen time.
+> **Fork Information**: This `main` branch is a customized, lightweight fork of QuestPhone. It has been stripped of default server, cloud sync, and backend integrations to allow for streamlined, private offline experimentation and local improvements.
+> 
+> If you are looking for the full project codebase containing the clean, fully-featured, and upstream-compatible contribution set (including parallel sync fixes, AppBlockerService battery optimizations, and the inline engine selection UI), please refer to the **[clean-pr](https://github.com/Afrasyaab-GH/QuestPhone/tree/clean-pr)** branch.
 
-**AmniQuest** is an open-source Android productivity utility and minimal launcher designed to help users combat screen addiction by gamifying habit-forming and app-blocking workflows. Distracting apps remain blocked until you successfully complete your real-life quests.
+**QuestPhone** is a powerful, open-source Android productivity utility and minimal launcher designed to help users combat screen addiction by gamifying habit-forming and app-blocking workflows. Distracting apps remain blocked until you successfully complete your real-life quests.
+
+> [!CAUTION]
+> This project is experimental and under active development.
 
 ---
 
-## Key Features
+## 🚀 Key Features
 
 - **Minimalist Launcher**: Minimizes screen clutter and keeps your focus where it belongs.
 - **Gamified Habits**: Level up, build streaks, earn coins, collect objects, and track progress.
 - **Strict Real-Life Verification**: Uses hardware-accelerated local AI or external integrations to verify that you actually completed your quests.
-- **On-Device Privacy First**: Local-first architecture with zero mandatory account requirements.
+- **On-Device Privacy First**: Local-first architecture with optional secure end-to-end sync.
 - **AES-256 Backup Encryption**: Export and import your data with high-grade PBKDF2 password-derived AES-256-CBC encryption.
-- **Habit Privacy Mode**: Hide sensitive quest titles (e.g. medical or personal habits) behind a masked state, unlocked via Android Biometrics (Fingerprint/Face/PIN/Pattern).
+- **Habit Privacy Mode**: Hide sensitive quest titles (e.g. medical or personal habits) behind a `"🔒 Hidden Quest"` mask, unlocked via Android Biometrics (Fingerprint/Face/PIN/Pattern).
 - **Background Auto-Backups**: Periodically saves local rolling backups of your profile and quests in the background via Android `WorkManager`.
-- **Custom Theme Suite**: Custom themes including Cyberpunk, Nordic Frost, Solarized Sunset, Cherry Blossoms, Hacker, and Pitch Black.
-- **Home Screen Widgets**: Track active quests, daily streaks, and coins directly from your device launcher with native AppWidgets.
 - **Sync Migrator**: Seamlessly uploads and merges offline anonymous statistics and quests to your online account upon registration or login.
 
 ---
 
-## Screenshots
+## 📸 Screenshots
 
 Click on any image to enlarge.
 
@@ -39,10 +42,7 @@ Click on any image to enlarge.
 
 ---
 
-## Tech Stack & Architecture
-
-> [!NOTE]
-> For a comprehensive breakdown of the project architecture, multi-module structure, product flavors (`play` vs `fdroid`), app blocker foreground service, and AI validation pipelines, see [ARCHITECTURE.md](ARCHITECTURE.md).
+## 🛠️ Tech Stack & Architecture
 
 - **UI & State**: Jetpack Compose, Material Design 3, Dagger Hilt.
 - **Database & Sync**: Room (SQLite), Supabase Auth & Database Sync.
@@ -50,15 +50,15 @@ Click on any image to enlarge.
   - **SentencePiece JNI**: Custom JNI native C++ wrapper compiled via CMake.
   - **SigLIP ONNX Runtime**: Local zero-shot vision classification for image features.
   - **Gemini Nano (AICore)**: Local LLM reasoning utilizing Google's system-level `AICore` client API.
-  - **Fallback Chain**: Local Gemini Nano -> Private Gemini API Key -> Cloud Server Validation -> Local SigLIP.
+  - **Fallback Chain**: Local Gemini Nano ➔ Private Gemini API Key ➔ Cloud Server Validation ➔ Local SigLIP.
 
 ---
 
-## Build & Development Instructions
+## 📦 Build & Development Instructions
 
 ### Prerequisites
 1. **JDK 17** (OpenJDK 17 recommended)
-2. **Android SDK** (API 36 / 34)
+2. **Android SDK** (API 34)
 3. **NDK & CMake** (Install via Android Studio SDK Manager)
 
 ### Build Commands
@@ -67,36 +67,25 @@ To build and compile both build variants:
 
 ```powershell
 # Compile Kotlin and generate release APKs
-.\gradlew.bat --gradle-user-home D:\PROJECTS\QuestPhone\.gradle_home assemblePlayDebug assembleFdroidDebug
+.\gradlew.bat assemblePlayDebug assembleFdroidDebug
 ```
 
-### Build Notes
+### Build Gotchas & Fixes
 
 > [!TIP]
 > **Windows Gradle Multi-Drive Root Limitation**:
-> If your project resides on a secondary drive (e.g. `D:`) while the default Gradle cache folder is on `C:`, KSP may encounter path resolution issues. Bypass this by setting the Gradle user home directory on the same drive:
+> If your project resides on a secondary drive (e.g. `D:`) while the default Gradle cache folder is on `C:`, KSP will throw a `different roots` exception. Bypass this by setting the Gradle user home directory on the same drive:
 > ```powershell
 > .\gradlew.bat --gradle-user-home D:\PROJECTS\QuestPhone\.gradle_home assemblePlayDebug assembleFdroidDebug
 > ```
 
 > [!NOTE]
-> **JNI Configuration on Windows**:
-> [CMakeLists.txt](file:///d:/PROJECTS/QuestPhone/ai/src/main/cpp/CMakeLists.txt) references `src/` and `src/builtin_pb/` explicitly to ensure correct native builds on Windows.
+> **JNI Symlink Limitation on Windows**:
+> Standard Git checkouts on Windows map symlinks as text redirect files. The build's JNI configuration bypasses this by compiling SentencePiece sources directly from their actual directories:
+> [CMakeLists.txt](file:///d:/PROJECTS/QuestPhone/ai/src/main/cpp/CMakeLists.txt) references `src/` and `src/builtin_pb/` explicitly to ensure correct native builds.
 
 ---
 
-## Roadmap
-
-- **v0.1.0**: Quantized Vision Performance (SigLIP ONNX memory & speed optimizations).
-- **v0.2.0**: Advanced Interactive Home Screen AppWidgets.
-- **v0.3.0**: Wear OS Companion App support.
-- **v0.4.0**: Optional Peer Accountability & Encrypted Challenges via Supabase.
-
-For detailed project milestones and architecture, see [PROJECT.md](PROJECT.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
-
----
-
-## License
+## 📄 License
 
 Licensed under the [Apache License 2.0](LICENSE).
-
