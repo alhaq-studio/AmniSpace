@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Process
 import android.provider.Settings
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -52,6 +53,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,17 +65,28 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.core.graphics.drawable.toBitmap
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.alhaq.amniquest.backed.repositories.UserRepositoryEntryPoint
+import com.alhaq.amniquest.core.core.utils.managers.sendRefreshRequest
+import com.alhaq.amniquest.core.services.AppBlockerService
+import com.alhaq.amniquest.core.services.AppBlockerServiceInfo
+import com.alhaq.amniquest.core.services.INTENT_ACTION_REFRESH_APP_BLOCKER
 import com.alhaq.amniquest.core.utils.UsageStatsHelper
 import com.alhaq.amniquest.data.ScreentimeStat
+import com.alhaq.amniquest.data.game.InventoryItem
+import dagger.hilt.android.EntryPointAccessors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.LocalDate
@@ -99,6 +112,26 @@ fun ScreentimeStatsScreen() {
     var isLoading by remember { mutableStateOf(true) }
 
     val prefs = remember { context.getSharedPreferences("digipaws_prefs", Context.MODE_PRIVATE) }
+    val distractionsPrefs = remember { context.getSharedPreferences("distractions", Context.MODE_PRIVATE) }
+
+    val userRepository = remember(context) {
+        try {
+            EntryPointAccessors.fromApplication(
+                context.applicationContext,
+                UserRepositoryEntryPoint::class.java
+            ).userRepository()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    val adderPrice = userRepository?.getDistractionAdderPrice() ?: 0
+    val removerPrice = userRepository?.getDistractionRemoverPrice() ?: 50
+    val inventoryMap by (userRepository?.inventoryState ?: MutableStateFlow(emptyMap())).collectAsState()
+    val adderOwned = inventoryMap[InventoryItem.DISTRACTION_ADDER] ?: 0
+    val removerOwned = inventoryMap[InventoryItem.DISTRACTION_REMOVER] ?: 0
+    var blockedPackages by remember { mutableStateOf(userRepository?.getBlockedPackages() ?: emptySet()) }
+    var selectedAppStat by remember { mutableStateOf<ScreentimeStat?>(null) }
 
     // Load usage stats
     fun loadUsageStats(date: LocalDate = LocalDate.now()) {
@@ -147,6 +180,50 @@ fun ScreentimeStatsScreen() {
 
         loadUsageStats()
         findDataRange()
+    }
+
+    val activeAppStat = selectedAppStat
+    if (activeAppStat != null) {
+        AppUsageBreakdownScreen(
+            stat = activeAppStat,
+            selectedDateMillis = selectedDate,
+            isBlocked = blockedPackages.contains(activeAppStat.packageName),
+            isIgnored = ignoredPackages.contains(activeAppStat.packageName),
+            adderPrice = adderPrice,
+            removerPrice = removerPrice,
+            adderOwned = adderOwned,
+            removerOwned = removerOwned,
+            onToggleBlocked = { pkg, _ ->
+                val updated = blockedPackages.toMutableSet().apply {
+                    if (contains(pkg)) remove(pkg) else add(pkg)
+                }
+                blockedPackages = updated
+                userRepository?.updateBlockedAppsSet(updated)
+                distractionsPrefs.edit { putStringSet("distracting_apps", updated) }
+                sendRefreshRequest(context, INTENT_ACTION_REFRESH_APP_BLOCKER)
+                AppBlockerServiceInfo.appBlockerService?.loadLockedApps()
+                if (!AppBlockerServiceInfo.isUsingAccessibilityService && AppBlockerServiceInfo.appBlockerService == null && updated.isNotEmpty()) {
+                    try {
+                        ContextCompat.startForegroundService(context, Intent(context, AppBlockerService::class.java))
+                    } catch (e: Exception) {
+                        Log.e("ScreentimeStatsScreen", "Failed to start AppBlockerService: ${e.message}")
+                    }
+                }
+            },
+            onToggleIgnored = { pkg ->
+                val updated = ignoredPackages.toMutableSet().apply {
+                    if (contains(pkg)) remove(pkg) else add(pkg)
+                }
+                ignoredPackages = updated
+                saveIgnoredPackages(prefs, updated)
+                val localDate = Instant.ofEpochMilli(selectedDate)
+                    .atZone(ZoneId.systemDefault())
+                    .toLocalDate()
+                loadUsageStats(localDate)
+            },
+            onBack = { selectedAppStat = null }
+        )
+        return
     }
 
     // Permission Dialog
@@ -244,7 +321,10 @@ fun ScreentimeStatsScreen() {
                     // Top 3 Apps Visualization
                     if (usageStats.isNotEmpty()) {
                         item {
-                            TopAppsSection(usageStats = usageStats.take(3))
+                            TopAppsSection(
+                                usageStats = usageStats.take(3),
+                                onAppClick = { stat -> selectedAppStat = stat }
+                            )
                         }
                     }
                     items(usageStats, key = { it.packageName }) { stat ->
@@ -254,7 +334,8 @@ fun ScreentimeStatsScreen() {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { },
+                                .clickable { selectedAppStat = stat }
+                                .testTag("usage_app_card_${stat.packageName}"),
                         ) {
                             Row(
                                 modifier = Modifier
@@ -350,7 +431,10 @@ fun TotalUsageCard(
 }
 
 @Composable
-fun TopAppsSection(usageStats: List<ScreentimeStat>) {
+fun TopAppsSection(
+    usageStats: List<ScreentimeStat>,
+    onAppClick: (ScreentimeStat) -> Unit = {}
+) {
     val context = LocalContext.current
     val pm = context.packageManager
 
@@ -381,6 +465,8 @@ fun TopAppsSection(usageStats: List<ScreentimeStat>) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onAppClick(stat) }
                         .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
