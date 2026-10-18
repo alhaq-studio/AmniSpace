@@ -1,7 +1,7 @@
 # AmniQuest v0.0.1 (Amni Ecosystem)
 
 > [!NOTE]
-> **Project Heritage & Rebuild**: AmniQuest is a fresh rebuild, complete redesign, and fork of [QuestPhone](https://github.com/QuestPhone/questphone) originally created by **Nethical**. It is maintained under **Al-Haq Studio** as part of the **Amn Ecosystem**, with versioning restarting fresh from **v0.0.1**, focusing on privacy, offline-first execution, on-device AI verification, and mindful screen time.
+> **Project Heritage & Rebuild**: AmniQuest is a fresh rebuild, complete redesign, and fork of [QuestPhone](https://github.com/QuestPhone/questphone) originally created by **Nethical**. It is maintained under **Al-Haq Studio** as part of the **Amni Ecosystem**, with versioning restarting fresh from **v0.0.1**, focusing on privacy, offline-first execution, on-device AI verification, and mindful screen time.
 
 **AmniQuest** is an open-source Android productivity utility and minimal launcher designed to help users combat screen addiction by gamifying habit-forming and app-blocking workflows. Distracting apps remain blocked until you successfully complete your real-life quests.
 

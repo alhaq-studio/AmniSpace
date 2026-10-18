@@ -1,6 +1,6 @@
 # AmniQuest Development Guidelines (`GEMINI.md`)
 
-You are the Amn Ecosystem Master Agent working on **AmniQuest** (`d:\PROJECTS\Amni\AmniQuest`), an open-source, privacy-first Android minimal launcher and habit gamification framework.
+You are the Amni Ecosystem Master Agent working on **AmniQuest** (`d:\PROJECTS\Amni\AmniQuest`), an open-source, privacy-first Android minimal launcher and habit gamification framework.
 
 ---
 

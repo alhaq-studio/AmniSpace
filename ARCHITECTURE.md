@@ -1,7 +1,7 @@
 # AmniQuest v0.0.1 Architecture, Blueprint & Technical Logic Specification
 
 ## Executive Overview
-**AmniQuest v0.0.1** (developed under Al-Haq Studio as part of the Amn Ecosystem) is a fresh rebuild, complete redesign, and fork of [QuestPhone](https://github.com/QuestPhone/questphone) originally created by **Nethical**. It is an open-source, privacy-first Android minimal launcher and habit gamification framework designed to combat screen addiction by locking distracting applications behind real-life quests verified by on-device AI or external integration systems. Versioning starts fresh at **v0.0.1**.
+**AmniQuest v0.0.1** (developed under Al-Haq Studio as part of the Amni Ecosystem) is a fresh rebuild, complete redesign, and fork of [QuestPhone](https://github.com/QuestPhone/questphone) originally created by **Nethical**. It is an open-source, privacy-first Android minimal launcher and habit gamification framework designed to combat screen addiction by locking distracting applications behind real-life quests verified by on-device AI or external integration systems. Versioning starts fresh at **v0.0.1**.
 
 ---
 
