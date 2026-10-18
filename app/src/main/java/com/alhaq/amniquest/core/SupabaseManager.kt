@@ -23,6 +23,18 @@ object Supabase {
     fun initialize(context: Context) {
         appContext = context.applicationContext
     }
+
+    fun isInitialized(): Boolean = ::appContext.isInitialized
+
+    fun currentUserIdOrNull(): String? {
+        if (!::appContext.isInitialized) return null
+        return try {
+            supabase.auth.currentUserOrNull()?.id
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     val supabase by lazy {
         createSupabaseClient(url, apiKey) {
             defaultSerializer = KotlinXSerializer(Json {

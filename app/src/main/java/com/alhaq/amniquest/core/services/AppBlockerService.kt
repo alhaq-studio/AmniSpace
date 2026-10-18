@@ -128,7 +128,7 @@ class AppBlockerService : Service() {
         blockerHandler.removeCallbacks(appMonitorRunnable)
         blockerThread.quitSafely()
         AppBlockerServiceInfo.appBlockerService = null
-        showHomwScreenOverlay()
+        showHomeScreenOverlay()
         // remove the notification when service is destroyed
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager.cancel(NOTIFICATION_ID)
@@ -282,12 +282,13 @@ class AppBlockerService : Service() {
             Log.d(TAG, "Lock condition met for: $detectedForegroundPackage (showing lock screen)")
             showLockScreenFor(detectedForegroundPackage)
             return true
-        } else {
-            try {
-                val interval =
-                    AppBlockerServiceInfo.unlockedApps[detectedForegroundPackage]!! - System.currentTimeMillis()
-                startCooldownTimer(detectedForegroundPackage, interval.toLong())
-            } catch (_: Exception) {
+        } else if (isTemporarilyUnlocked) {
+            val expiryTime = AppBlockerServiceInfo.unlockedApps[detectedForegroundPackage]
+            if (expiryTime != null) {
+                val interval = expiryTime - System.currentTimeMillis()
+                if (interval > 0) {
+                    startCooldownTimer(detectedForegroundPackage, interval)
+                }
             }
         }
         return false
@@ -297,7 +298,7 @@ class AppBlockerService : Service() {
         currentLockedPackage = packageName
         isOverlayActive = true
         // Ensure biometric auth in progress is reset if we are showing a new lock screen
-        handler.post { showHomwScreenOverlay() }
+        handler.post { showHomeScreenOverlay() }
     }
 
     private fun handleHomeScreenDetected(detectedForegroundPackage: String?) {
@@ -366,7 +367,7 @@ class AppBlockerService : Service() {
         }
     }
 
-    private fun showHomwScreenOverlay() {
+    private fun showHomeScreenOverlay() {
         val intent = Intent(this, MainActivity::class.java)
         intent.addFlags(
             Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -499,7 +500,7 @@ class AppBlockerService : Service() {
                 }
                 INTENT_ACTION_START_DEEP_FOCUS -> {
                     AppBlockerServiceInfo.deepFocus.exceptionApps =
-                        intent.getStringArrayListExtra("exception")?.toHashSet()!!
+                        intent.getStringArrayListExtra("exception")?.toHashSet() ?: hashSetOf()
                     AppBlockerServiceInfo.deepFocus.isRunning = true
                     AppBlockerServiceInfo.deepFocus.duration = intent.getLongExtra("duration", 0L)
                     startCooldownTimer("deepfocus", AppBlockerServiceInfo.deepFocus.duration)
@@ -612,10 +613,6 @@ class AppBlockerService : Service() {
                 val remainingSeconds = remainingMs / 1000
 
                 val progress = elapsedMs.toFloat() / duration.toFloat()
-
-                if(remainingSeconds<10){
-                    Toast.makeText(this@AppBlockerService, "Remaining time: $remainingSeconds", Toast.LENGTH_SHORT).show()
-                }
 
                 if (remainingSeconds > 0) {
                     Log.d(

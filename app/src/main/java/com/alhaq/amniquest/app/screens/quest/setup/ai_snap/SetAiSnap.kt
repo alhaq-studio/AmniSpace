@@ -117,15 +117,6 @@ fun SetAiSnap(editQuestId:String? = null,navController: NavHostController, viewM
 
     val isCameraScreen by tester.isCameraScreen.collectAsState()
     val isAiEvaluating by tester.isAiEvaluating.collectAsState()
-    if (isAiEvaluating) {
-        AiEvaluationScreen(
-            {
-                tester.isCameraScreen.value = false
-                tester.isAiEvaluating.value = false
-            },
-            tester
-        )
-    }
     BackHandler(isMdEditorVisible || isCameraScreen || isAiEvaluating) {
         isMdEditorVisible = false
         tester.isCameraScreen.value = false
@@ -197,6 +188,13 @@ fun SetAiSnap(editQuestId:String? = null,navController: NavHostController, viewM
                         )
                     },
                     actions = {
+                        IconButton(onClick = { isModelDownloadDialogVisible.value = true }) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_quest_ai_snap),
+                                contentDescription = "Select AI Model",
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
                         Icon(
                             painter = painterResource(R.drawable.outline_help_24),
                             contentDescription = "Help",
@@ -245,21 +243,30 @@ fun SetAiSnap(editQuestId:String? = null,navController: NavHostController, viewM
                             Text(text = "This uses a non-finetuned variant of siglip2 that works well for object detection but is not really impressive for contextual and real world tasks. Please write an appropriate prompt, test and explore before adding quest. ")
                         }
 
-                        Button(onClick = {
-                            if(taskDescription.isEmpty()) return@Button
-                            tester.isCameraScreen.value = true
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(onClick = {
+                                if(taskDescription.isEmpty()) return@Button
+                                tester.isCameraScreen.value = true
 
-                            val aiSnap =
-                                AiSnap(taskDescription = taskDescription, features.toMutableList())
-                            tester.setCommonQuest(
-                                CommonQuestInfo(
-                                    integration_id = BaseIntegrationId.AI_SNAP,
-                                    quest_json = json.encodeToString(aiSnap)
+                                val aiSnap =
+                                    AiSnap(taskDescription = taskDescription, features.toMutableList())
+                                tester.setCommonQuest(
+                                    CommonQuestInfo(
+                                        integration_id = BaseIntegrationId.AI_SNAP,
+                                        quest_json = json.encodeToString(aiSnap)
+                                    )
                                 )
-                            )
-                            tester.setAiSnap()
-                        }) {
-                            Text("Test Prompt")
+                                tester.setAiSnap()
+                            }) {
+                                Text("Test Prompt")
+                            }
+
+                            TextButton(onClick = { isModelDownloadDialogVisible.value = true }) {
+                                Text("Manage AI Models")
+                            }
                         }
 
                         Column(

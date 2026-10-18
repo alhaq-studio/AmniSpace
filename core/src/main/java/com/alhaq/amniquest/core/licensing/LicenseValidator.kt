@@ -22,7 +22,10 @@ object LicenseValidator {
      * Cryptographically validates an offline NIST P-256 ECDSA license key.
      * Expected format: "<base64_json_payload>.<base64_signature>"
      */
-    fun verifyLicense(licenseString: String): LicensePayload? {
+    fun verifyLicense(
+        licenseString: String,
+        keyring: Map<Int, String> = KEYRING
+    ): LicensePayload? {
         try {
             val cleanString = licenseString.trim().trim('"', '\'').replace("\r", "").replace("\n", "")
             val parts = cleanString.split(".")
@@ -43,7 +46,7 @@ object LicenseValidator {
             }
 
             // Retrieve the public key corresponding to the payload schema version
-            val publicKeyBase64 = KEYRING[payload.version] ?: return null
+            val publicKeyBase64 = keyring[payload.version] ?: return null
             val publicKeyBytes = decodeBase64Safe(publicKeyBase64)
             val keySpec = X509EncodedKeySpec(publicKeyBytes)
             val keyFactory = KeyFactory.getInstance("EC")

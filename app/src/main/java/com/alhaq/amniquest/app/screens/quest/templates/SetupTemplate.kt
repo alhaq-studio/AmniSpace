@@ -103,6 +103,19 @@ fun SetupTemplate(controller: NavController,viewModel: TemplatesViewModel) {
                         fontWeight = FontWeight.Bold
                     )
                 },
+                actions = {
+                    if (templateContent?.basicQuest?.integration_id == BaseIntegrationId.AI_SNAP) {
+                        androidx.compose.material3.IconButton(
+                            onClick = { isModelDownloadDialogVisible.value = true }
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_quest_ai_snap),
+                                contentDescription = "Select AI Model",
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface

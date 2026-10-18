@@ -1,4 +1,4 @@
-package launcher.launcher
+package com.alhaq.amniquest
 
 import org.junit.Test
 

@@ -22,17 +22,17 @@ AmniQuest (Root)
 
 | Module | Type | Responsibilities | Key Dependencies |
 | :--- | :--- | :--- | :--- |
-| **`:app`** | App | Presentation layer (Jetpack Compose), Navigation Host, ViewModels, Accessibility Service, Hilt DI bindings, AppWidget hosts, Build Flavors (`play`, `fdroid`). | `:data`, `:core`, `:backend`, `:ai` (fdroid) |
+| **`:app`** | App | Presentation layer (Jetpack Compose), Navigation Host, ViewModels, Accessibility Service, Hilt DI bindings, AppWidget hosts, Build Flavors (`play`, `fdroid`). | `:data`, `:core`, `:backend`, `:ai` |
 | **`:core`** | Library | App blocking services, usage statistics polling, AES-256 backup logic, FCM handling, licensing validator, sound & vibration managers. | `:data` |
 | **`:data`** | Library | Canonical data representations, Kotlinx Serialization contracts, Room database schemas, Quest info classes, User profile models. | `kotlinx-datetime`, `serialization-json`, Compose Material3 |
 | **`:backend`** | Library | Ktor HTTP client, Supabase authentication & storage handlers, remote task validation endpoints, Gemini API client. | `:data`, `:core`, Ktor, WorkManager |
-| **`:ai`** | Library | Native C++ SentencePiece tokenizer wrapper compiled via CMake and NDK, JNI bindings for local NLP/vision pipelines. | Android NDK (r25c), CMake |
+| **`:ai`** | Library | Native C++ SentencePiece tokenizer wrapper compiled via CMake and NDK with 16 KB page size alignment, JNI bindings for local SigLIP 2 zero-shot vision and NLP pipelines. | Android NDK (r25c), CMake |
 
 ---
 
 ## 2. Product Flavors & Distribution Architecture
 
-AmniQuest uses a strict two-dimensional product flavor strategy (`distribution`) to accommodate Google Play Store requirements while adhering to F-Droid open-source guidelines.
+AmniQuest uses a two-dimensional product flavor strategy (`distribution`) to accommodate Google Play Store requirements while adhering strictly to F-Droid open-source guidelines. On-device local AI verification via ONNX Runtime and the `:ai` SentencePiece native library is a **universal foundation available across all build variants**.
 
 ```
 +-----------------------------------------------------------------------------------+
@@ -40,23 +40,27 @@ AmniQuest uses a strict two-dimensional product flavor strategy (`distribution`)
 +------------------------------------------+----------------------------------------+
 |              Play Flavor                 |             F-Droid Flavor             |
 +------------------------------------------+----------------------------------------+
-| - Google Play Billing Library            | - ONNX Runtime Android Engine          |
-| - Firebase Cloud Messaging (FCM)         | - Local SentencePiece JNI (:ai)        |
-| - System Gemini Nano (Google AICore)     | - Local SigLIP ONNX Zero-Shot Vision   |
-| - Cloud / Private Gemini API Fallback    | - Offline-first Local Model Inference  |
+| - Google Play Billing Library            | - F-Droid Free / Direct Donation Mgr   |
+| - Firebase Cloud Messaging (FCM)         | - F-Droid Push Provider (No GMS/FCM)   |
+| - Google AICore Gemini Nano (System LLM) | - 100% Free & Open-Source (FOSS) SDKs  |
+| - Calibrated SigLIP 2 Zero-Shot Fallback | - Local SigLIP 2 ONNX Zero-Shot Vision |
+| - Local SigLIP 2 ONNX Zero-Shot Vision   | - Local SentencePiece C++ JNI (:ai)    |
+| - Local SentencePiece C++ JNI (:ai)      | - User Private Gemini API & Cloud Sync |
+| - User Private Gemini API & Cloud Sync   | - Offline-first Local Model Inference  |
 +------------------------------------------+----------------------------------------+
 ```
 
 1. **`play` Flavor (`isFdroid = false`)**:
-   - Includes closed-source/proprietary SDKs: Google Play Billing Library (`com.android.billing:billing-ktx`) and Firebase Messaging (`com.google.firebase:firebase-messaging`).
-   - Uses `Google AICore` (`com.google.ai.edge.aicore`) for system-level Gemini Nano on supported devices.
-   - Leverages `Cloud Server` or user-configured `Private Gemini API Key` for multimodal photo validation.
+   - Includes Google Play Billing Library (`com.android.billing:billing-ktx`) and Firebase Messaging (`com.google.firebase:firebase-messaging`).
+   - Supports Google AICore system service (`com.google.ai.edge.aicore`) for local Gemini Nano reasoning, with automatic fallback to calibrated SigLIP 2 zero-shot vision validation when AICore is unavailable.
+   - Fully supports on-device SigLIP 2 ONNX vision classification models (UINT8, INT8, Q4F16, FP16, FULL) and native SentencePiece C++ JNI.
+   - Supports user-configured Private Gemini API Key (`Gemini 2.5 Flash`) and Supabase Cloud Server validation.
 
 2. **`fdroid` Flavor (`isFdroid = true`)**:
-   - 100% Free and Open-Source Software (FOSS) compliant.
-   - Replaces Google Play Billing with F-Droid direct donation / free billing manager (`FdroidBillingManager.kt`).
-   - Integrates `:ai` native module and ONNX Runtime Android (`ai.onnxruntime:onnxruntime-android`).
-   - Executes local zero-shot image classification via SigLIP ONNX models paired with the SentencePiece tokenizer JNI.
+   - 100% Free and Open-Source Software (FOSS) compliant with zero proprietary GMS or Firebase SDKs.
+   - Replaces Google Play Billing with F-Droid direct donation / free billing manager (`FdroidBillingManager.kt`) and uses `FdroidPushProvider.kt`.
+   - Fully supports on-device SigLIP 2 ONNX vision classification models (UINT8, INT8, Q4F16, FP16, FULL) paired with native SentencePiece C++ JNI.
+   - Supports user-configured Private Gemini API Key and Supabase Cloud Server validation without requiring Google Play services.
 
 ---
 
@@ -142,39 +146,107 @@ AmniQuest gamifies productivity by requiring users to prove they completed real-
 3. **Swift Mark Quest**: Recurrent habit check-off with optional auto-destruct timers.
 4. **External Integration Quest**: Webview-based quest integration via custom JavaScript bridge (`WebAppInterface.kt`).
 
-### AI Validation Chain (`AiSnapQuestViewVM.kt`)
+### AI Validation Architecture & Unified ViewModel
+
+The AI verification pipeline is unified across all build variants via `app/src/main/java/com/alhaq/amniquest/AiSnapQuestViewVM.kt`. It provides real-time progress steps (`INITIALIZING`, `PREPROCESSING`, `ANALYZING`, `VERIFYING`, `COMPLETED`), memory lifecycle management, and automatic runtime fallback.
 
 ```
-                          [Photo Captured by User]
-                                     |
-                                     v
-                        Check Validation Engine Preference
-                                     |
-         +---------------------------+---------------------------+
-         |                           |                           |
-         v                           v                           v
-   Engine = "local"           Engine = "gemini_api"        Engine = "cloud"
-         |                           |                           |
-         v                           v                           v
-  Is Gemini Nano             Use User's Private           Retrieve Supabase
-  Supported?                 Gemini API Key               Access Token
-    /      \                         |                           |
-  Yes       No                       |                           |
-   |         |                       v                           v
-   v         v             Send Multimodal Prompt       Send to Remote Server
- Validate   Fallback        to Gemini 2.5 Flash         Validation Endpoint
- Locally   to SigLIP                 |                           |
- via Nano  (F-Droid)                 +-------------+-------------+
-                                                   |
-                                                   v
-                                        Return Validation Result
-                                           (Valid / Invalid)
+                                  [Photo Captured by User]
+                                             |
+                                             v
+                           Check Validation Engine Preference
+                                             |
+                 +---------------------------+---------------------------+
+                 |                           |                           |
+                 v                           v                           v
+           Engine = "local"           Engine = "gemini_api"        Engine = "cloud"
+                 |                           |                           |
+                 v                           v                           v
+         Model Selected from         Use User's Private           Retrieve Supabase
+          SigLIP 2 Catalog             Gemini API Key               Access Token
+                 |                           |                           |
+                 +---------------+           |                           |
+                 |               |           v                           v
+                 v               v       Direct API Call             Send to Cloud
+           SigLIP 2 ONNX    Gemini Nano   (Gemini 2.5 Flash)       Validation Endpoint
+            Zero-Shot        (AICore)            |                           |
+                 |               |               +-------------+-------------+
+                 |               v                             |
+                 |        Is AICore Active?                    |
+                 |           /       \                         |
+                 |         Yes        No                       |
+                 |          |          |                       |
+                 |          v          v                       |
+                 |       Prompt    Fallback                    |
+                 |       Gemini    to SigLIP 2                 |
+                 |        Nano     Zero-Shot                   |
+                 |          |          |                       |
+                 +----------+----------+                       |
+                            |                                  |
+                            v                                  v
+                  Return Validation Result <-------------------+
+                     (Valid / Invalid)
 ```
 
-1. **Local Gemini Nano Engine**: Executes on-device LLM prompt evaluation using Google's system-level `AICore` client API (`LocalGeminiNanoValidator.kt`). Zero network latency and total privacy.
-2. **Private Gemini API Key**: Uses the user's personal Gemini API key (`GeminiValidator.kt`) to make direct multimodal calls to `Gemini 2.5 Flash`.
-3. **Cloud Validation Server**: Authenticates with Supabase JWT and passes image payloads to the backend validation endpoint (`AiSnapValidator.kt`).
-4. **Local SigLIP (F-Droid Local Engine)**: Runs ONNX Runtime image preprocessing, tokenizes feature tags with native SentencePiece JNI, and computes zero-shot feature logits.
+### Supported Validation Engines & Model Catalog
+
+AmniQuest supports four distinct validation engines:
+
+1. **Local SigLIP 2 Zero-Shot Vision Engine (`local`)**:
+   - Executes 100% locally on-device using ONNX Runtime (`onnxruntime-android`) and the native SentencePiece C++ JNI.
+   - Built-in model catalog supports 5 quantized and full-precision variants:
+     - `SIGLIP2_UINT8` (Quantized UINT8, ~378 MB): Lowest memory footprint, optimized for entry-level devices.
+     - `SIGLIP2_INT8` (Quantized INT8, ~450 MB): Balanced inference performance and memory.
+     - `SIGLIP2_Q4F16` (Quantized Q4 with FP16 outputs, ~497 MB): High precision with reduced weights.
+     - `SIGLIP2_FP16` (Half-Precision Float16, ~751 MB): Native FP16 floating-point execution.
+     - `SIGLIP2_FULL` (Full Precision Float32, ~1500 MB): Reference full-precision vision model.
+   - Dynamic model resolution falls back immediately to the embedded static catalog if network connectivity is unavailable, preventing null pointer crashes.
+
+2. **System Gemini Nano Engine (`gemini_nano`)**:
+   - Evaluates verification prompts on supported Google Pixel and Samsung flagship devices using Google's system-level `AICore` client API (`LocalGeminiNanoValidator.kt`).
+   - Hardened JSON response parsing (`parseNanoValidationResponse`) handles standard schemas, reversed key ordering (`{"reason": "...", "valid": true}`), and escaped strings.
+   - **Calibrated Fallback**: If `AICore` is unavailable, uninitialized, or fails at runtime, the pipeline automatically falls back to calibrated SigLIP 2 zero-shot similarity verification.
+
+3. **Private Gemini API Key Engine (`gemini_api`)**:
+   - Directly calls Google's `Gemini 2.5 Flash` API endpoint (`GeminiValidator.kt`) using the user's personal API key stored in private preferences.
+
+4. **Cloud Server Validation Engine (`cloud`)**:
+   - Authenticates with Supabase JWT and transmits the photo payload to the remote task validation endpoint (`AiSnapValidator.kt`).
+
+### Multi-Precision Tensor Extraction & Buffer Safety
+
+Different ONNX quantized architectures produce varying output logit tensor types. The extraction pipeline in `AiPipelineUtils.extractLogitsFromBuffers` handles:
+- **`FLOAT`**: Direct `FloatBuffer` instances are safely copied into `FloatArray` without calling `.array()`, avoiding `UnsupportedOperationException` on direct NIO buffers.
+- **`FLOAT16` & `BFLOAT16`**: Output `shortBuffer` instances are converted to 32-bit floats using `Fp16Conversions.convertFp16BufferToFloatBuffer(shortBuffer)`.
+- **`DOUBLE`**: Extracted via `doubleBuffer` and cast down to 32-bit floats for cosine similarity calculation.
+
+### Native SentencePiece C++ JNI & Gemma Tokenization Specs
+
+The native tokenizer module (`:ai`) provides text tokenization for zero-shot prompts:
+- **Thread Safety**: Model loading and tokenization are protected by `std::mutex` in `sentencepiece_jni.cpp` to prevent race conditions during concurrent worker evaluations.
+- **Model Path Caching**: Cached global model path (`g_loaded_model_path`) prevents redundant disk reloads when the same model file is reused.
+- **Gemma Tokenization Specs**: Configured with `PAD=0L`, `EOS=1L`, `maxLength=64`, and lowercase normalization in `OneShotTools.kt`.
+- **16 KB Memory Page Alignment**: Compiled with `-Wl,-z,max-page-size=16384` for strict Android 15+ 16 KB page memory alignment compliance.
+
+### Hardware Acceleration & Runtime Fault Recovery
+
+- **NNAPI Acceleration**: Sessions initialize with NNAPI hardware acceleration enabled by default.
+- **Automatic CPU Recovery**: If NNAPI execution fails during `session.run(inputs)` due to driver incompatibility or unsupported tensor shapes, the session automatically catches the runtime exception, recreates a CPU-only `OrtSession`, and completes verification without user disruption.
+- **Memory & Bitmap Lifecycle**:
+  - `Bitmap.Config.HARDWARE` instances are safely converted to software bitmaps before pixel extraction.
+  - Bulk pixel extraction via `getPixels()` replaces slow pixel-by-pixel reads.
+  - Intermediate camera bitmaps are explicitly recycled in `try-finally` blocks.
+  - All `OnnxTensor` instances are enclosed in `.use { ... }` blocks to ensure immediate native memory release.
+- **Error Lockout Prevention**: `resetResults()` clears `error.value` and resets `currentStep` to `INITIALIZING`, allowing users to retry validation without remaining trapped on error screens.
+
+### Resilient Model Download Engine (`FileDownloadWorker`)
+
+On-device AI models (~378 MB to ~1.5 GB) and tokenizer assets (~4.1 MB) are downloaded via Android `WorkManager`:
+- **HTTP Range Resume**: Supports HTTP 206 Partial Content resumes and HTTP 200 clean restarts when network interrupts occur.
+- **Notification Synchronization**: Dedicated foreground notification IDs prevent notification channel collisions.
+- **Shared Tokenizer Queue**: Tokenizer downloads use a unique work name (`tokenizer.model`) with `ExistingWorkPolicy.KEEP` to prevent redundant downloads.
+- **WorkManager Expedited Quota Fallback**: Uses `RUN_AS_NON_EXPEDITED_WORK_REQUEST` to prevent silent job drops when system expedited quotas are exhausted.
+- **State Reconciliation & Cancellation**: `ModelDownloadDialog.kt` reconciles stale SharedPreferences flags against active WorkManager states and provides an explicit "Cancel Download" option.
 
 ---
 
@@ -223,10 +295,16 @@ AmniQuest gamifies productivity by requiring users to prove they completed real-
 - **JDK**: Java 17
 - **Android SDK**: Compile SDK 36, Target SDK 36, Min SDK 26
 - **NDK & CMake**: NDK 25.2.9519653, CMake 3.22.1+
+- **Android 15+ 16 KB Memory Page Alignment**:
+  - Native shared libraries compiled in `:ai` explicitly configure `-Wl,-z,max-page-size=16384` in `CMakeLists.txt`.
+  - `:app` packaging options enforce `useLegacyPackaging = false` to preserve 16 KB alignment in uncompressed APK/AAB distributions.
 
 ### Gradle Commands
 
 ```powershell
+# Run entire automated test suite across all modules
+.\gradlew.bat test
+
 # Build both Play Debug and F-Droid Debug APKs
 .\gradlew.bat --gradle-user-home D:\PROJECTS\Amni\AmniQuest\.gradle_home assemblePlayDebug assembleFdroidDebug
 
@@ -240,10 +318,11 @@ AmniQuest gamifies productivity by requiring users to prove they completed real-
 
 | Domain | Architecture Pattern / Tech Stack | Primary Implementation Files |
 | :--- | :--- | :--- |
-| **Presentation Layer** | Jetpack Compose + Hilt ViewModels | `MainActivity.kt`, `HomeScreen.kt`, `RootRoute.kt` |
+| **Presentation Layer** | Jetpack Compose + Hilt ViewModels | `MainActivity.kt`, `HomeScreen.kt`, `RootRoute.kt`, `SetAiSnap.kt`, `SetupTemplate.kt` |
 | **Enforcement Service** | Foreground Service + UsageStatsManager | `AppBlockerService.kt`, `AppBlockerServiceInfo.kt` |
 | **Data & Sync** | Room SQLite + Supabase Postgrest | `CommonQuestInfo.kt`, `StatsInfo.kt`, `SupabaseManager.kt` |
-| **AI Validation** | Gemini Nano / Gemini API / SigLIP ONNX | `LocalGeminiNanoValidator.kt`, `GeminiValidator.kt`, `AiSnapQuestViewVM.kt` |
-| **Native C++ Tokenizer** | CMake + JNI + SentencePiece | `ai/src/main/cpp/CMakeLists.txt`, `sentencepiece_jni.cpp` |
-| **Background Tasks** | Android WorkManager | `BackupWorker.kt`, `QuestSyncWorker.kt`, `FileDownloadWorker.kt` |
+| **Unified AI Validation** | SigLIP 2 ONNX / Gemini Nano / Gemini API | `AiSnapQuestViewVM.kt`, `LocalGeminiNanoValidator.kt`, `GeminiValidator.kt`, `AiPipelineUtils.kt` |
+| **Native C++ Tokenizer** | CMake + JNI + SentencePiece (16 KB Aligned) | `ai/src/main/cpp/CMakeLists.txt`, `sentencepiece_jni.cpp`, `OneShotTools.kt` |
+| **Model Downloads** | Android WorkManager (Range Resume, Non-Expedited) | `FileDownloadWorker.kt`, `ModelDownloadDialog.kt` |
+| **Background Tasks** | Android WorkManager (Backups & Sync) | `BackupWorker.kt`, `QuestSyncWorker.kt`, `StatsSyncWorker.kt` |
 | **Gamification** | Room DB + Custom State Engines | `StoreScreen.kt`, `LevelUpDialog.kt`, `TheSystemDialog.kt` |

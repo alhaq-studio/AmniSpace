@@ -15,6 +15,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -23,6 +25,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -30,7 +34,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.alhaq.amniquest.AiSnapQuestViewVM
+import com.alhaq.amniquest.R
 import com.alhaq.amniquest.app.screens.components.TopBarActions
+import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.ModelDownloadDialog
 import com.alhaq.amniquest.app.screens.quest.view.components.MdPad
 import com.alhaq.amniquest.app.screens.quest.view.dialogs.QuestSkipperDialog
 import com.alhaq.amniquest.app.theme.LocalCustomTheme
@@ -50,7 +56,9 @@ fun AiSnapQuestView(
     val isQuestComplete by viewModel.isQuestComplete.collectAsState()
     val isCameraScreen by viewModel.isCameraScreen.collectAsState()
     val isAiEvaluating by viewModel.isAiEvaluating.collectAsState()
+    val isModelDownloadDialogVisible = remember { mutableStateOf(false) }
 
+    ModelDownloadDialog(modelDownloadDialogVisible = isModelDownloadDialogVisible)
 
     val isInTimeRange by viewModel.isInTimeRange.collectAsState()
     val coins by viewModel.coins.collectAsState()
@@ -69,9 +77,16 @@ fun AiSnapQuestView(
     }
 
     if(isAiEvaluating) {
-        AiEvaluationScreen({
-            viewModel.isCameraScreen.value = false
-            viewModel.isAiEvaluating.value = false}, viewModel)
+        AiEvaluationScreen(
+            onDismiss = {
+                viewModel.isCameraScreen.value = false
+                viewModel.isAiEvaluating.value = false
+            },
+            viewModel = viewModel,
+            onEvaluationSuccess = {
+                viewModel.onAiSnapQuestDone()
+            }
+        )
     } else if (isCameraScreen) {
         CameraScreen({
             viewModel.isAiEvaluating.value = true
@@ -89,6 +104,13 @@ fun AiSnapQuestView(
                 TopAppBar(
                     title = {},
                     actions = {
+                        IconButton(onClick = { isModelDownloadDialogVisible.value = true }) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_quest_ai_snap),
+                                contentDescription = "Select AI Model",
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                         TopBarActions(coins, 0, isCoinsVisible = true)
                     }
                 )

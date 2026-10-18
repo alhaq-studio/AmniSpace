@@ -38,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -61,17 +62,20 @@ import com.alhaq.amniquest.R
 import com.alhaq.amniquest.data.EvaluationStep
 import java.io.File
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.compose.material3.RadioButton
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.semantics.Role
 import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.ModelDownloadDialog
+import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.resolveActiveLocalModelId
 
 @SuppressLint("DefaultLocale")
 @Composable
 fun AiEvaluationScreen(
-    onDismiss:()-> Unit,
-    viewModel: AiSnapQuestViewVM
+    onDismiss: () -> Unit,
+    viewModel: AiSnapQuestViewVM,
+    onEvaluationSuccess: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val photoFile = File(context.filesDir, AI_SNAP_PIC)
@@ -210,15 +214,58 @@ fun AiEvaluationScreen(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
                             if (!isSuccess) {
-                                val settingsSp = context.getSharedPreferences("private_settings", android.content.Context.MODE_PRIVATE)
+                                val settingsSp = remember {
+                                    context.getSharedPreferences("private_settings", Context.MODE_PRIVATE)
+                                }
                                 val initialEngine = settingsSp.getString("validation_engine", "cloud") ?: "cloud"
                                 val storedApiKey = settingsSp.getString("gemini_api_key", "") ?: ""
 
                                 var selectedEngine by remember { mutableStateOf(initialEngine) }
                                 var apiKeyInput by remember { mutableStateOf(storedApiKey) }
 
-                                val modelsSp = context.getSharedPreferences("models", Context.MODE_PRIVATE)
-                                val currentModel = modelsSp.getString("selected_one_shot_model", "online") ?: "online"
+                                val modelsSp = remember { context.getSharedPreferences("models", Context.MODE_PRIVATE) }
+                                fun computeLocalModelLabel(): String {
+                                    val downloadedOnDisk = context.filesDir.listFiles()
+                                        ?.filter { it.name.endsWith(".onnx") }
+                                        ?.map { it.nameWithoutExtension }
+                                        ?.toSet()
+                                        ?: emptySet()
+                                    val downloadingId = modelsSp.getString("downloading", null)
+                                    val activeId = resolveActiveLocalModelId(
+                                        selectedModel = modelsSp.getString("selected_one_shot_model", null),
+                                        downloadingModel = downloadingId,
+                                        downloadedModelIdsOnDisk = downloadedOnDisk
+                                    )
+                                    return when {
+                                        activeId == null -> "None (Select Model)"
+                                        !downloadingId.isNullOrBlank() && activeId == downloadingId && !downloadedOnDisk.contains(activeId) ->
+                                            "$activeId (Downloading...)"
+                                        else -> activeId
+                                    }
+                                }
+
+                                var currentModel by remember { mutableStateOf(computeLocalModelLabel()) }
+
+                                DisposableEffect(modelsSp, settingsSp) {
+                                    val modelsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+                                        currentModel = computeLocalModelLabel()
+                                    }
+                                    val settingsListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
+                                        if (key == "validation_engine") {
+                                            selectedEngine = prefs.getString("validation_engine", "cloud") ?: "cloud"
+                                            currentModel = computeLocalModelLabel()
+                                        }
+                                    }
+                                    modelsSp.registerOnSharedPreferenceChangeListener(modelsListener)
+                                    settingsSp.registerOnSharedPreferenceChangeListener(settingsListener)
+                                    onDispose {
+                                        modelsSp.unregisterOnSharedPreferenceChangeListener(modelsListener)
+                                        settingsSp.unregisterOnSharedPreferenceChangeListener(settingsListener)
+                                    }
+                                }
+                                LaunchedEffect(modelDownloadDialogVisible.value, selectedEngine) {
+                                    currentModel = computeLocalModelLabel()
+                                }
 
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
@@ -304,7 +351,7 @@ fun AiEvaluationScreen(
                                             }.apply()
                                             Toast.makeText(context, "Engine settings updated! Retrying...", Toast.LENGTH_SHORT).show()
                                             viewModel.resetResults()
-                                            viewModel.evaluateQuest(onDismiss)
+                                            viewModel.evaluateQuest(onEvaluationSuccess)
                                         }
                                     },
                                     modifier = Modifier.fillMaxWidth()

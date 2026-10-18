@@ -80,6 +80,12 @@ class LocalGeminiNanoValidator(private val context: Context) {
         taskDescription: String,
         detectedFeatures: List<String>
     ): TaskValidationClient.ValidationResult {
+        if (detectedFeatures.isEmpty()) {
+            return TaskValidationClient.ValidationResult(
+                isValid = false,
+                reason = "No matching visual features were detected in the image."
+            )
+        }
         val model = generativeModel
         if (model == null || !isPrepared) {
             return TaskValidationClient.ValidationResult(
@@ -104,18 +110,7 @@ class LocalGeminiNanoValidator(private val context: Context) {
         return try {
             val response = model.generateContent(prompt)
             val responseText = response.text ?: ""
-            
-            val isValid = responseText.contains("\"is_valid\"\\s*:\\s*true".toRegex(RegexOption.IGNORE_CASE))
-            val reasonStart = responseText.indexOf("\"reason\"")
-            val reason = if (reasonStart != -1) {
-                responseText.substring(reasonStart + 8)
-                    .substringAfter(":")
-                    .substringBefore("}")
-                    .trim('"', ' ', '\n', '\r')
-            } else {
-                "Goal validated successfully!"
-            }
-            TaskValidationClient.ValidationResult(isValid, reason)
+            parseNanoValidationResponse(responseText)
         } catch (e: Throwable) {
             Log.e(TAG, "Local reasoning execution failed", e)
             TaskValidationClient.ValidationResult(
@@ -125,3 +120,45 @@ class LocalGeminiNanoValidator(private val context: Context) {
         }
     }
 }
+
+internal fun parseNanoValidationResponse(responseText: String): TaskValidationClient.ValidationResult {
+    val isValidMatch = "\"is_valid\"\\s*:\\s*(true|false)".toRegex(RegexOption.IGNORE_CASE).find(responseText)
+        ?: return TaskValidationClient.ValidationResult(
+            isValid = false,
+            reason = "On-device AI reasoning error: Malformed response from Gemini Nano"
+        )
+
+    val isValid = isValidMatch.groupValues[1].equals("true", ignoreCase = true)
+
+    val quotedReasonRegex = "\"reason\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"".toRegex(RegexOption.DOT_MATCHES_ALL)
+    val quotedMatch = quotedReasonRegex.find(responseText)
+    val parsedReason = if (quotedMatch != null) {
+        quotedMatch.groupValues[1]
+            .replace("\\\"", "\"")
+            .replace("\\n", "\n")
+            .replace("\\r", "\r")
+            .replace("\\\\", "\\")
+            .trim()
+    } else {
+        val reasonStart = responseText.indexOf("\"reason\"")
+        if (reasonStart != -1) {
+            responseText.substring(reasonStart + 8)
+                .substringAfter(":")
+                .substringBefore(",")
+                .substringBefore("}")
+                .trim('"', ' ', '\n', '\r', ',')
+        } else {
+            ""
+        }
+    }
+
+    val reason = parsedReason.ifBlank {
+        if (isValid) {
+            "Goal validated successfully!"
+        } else {
+            "Could not verify goal from detected environment features."
+        }
+    }
+    return TaskValidationClient.ValidationResult(isValid, reason)
+}
+

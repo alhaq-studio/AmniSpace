@@ -47,10 +47,13 @@ Click on any image to enlarge.
 - **UI & State**: Jetpack Compose, Material Design 3, Dagger Hilt.
 - **Database & Sync**: Room (SQLite), Supabase Auth & Database Sync.
 - **On-Device AI Engine**:
-  - **SentencePiece JNI**: Custom JNI native C++ wrapper compiled via CMake.
-  - **SigLIP ONNX Runtime**: Local zero-shot vision classification for image features.
-  - **Gemini Nano (AICore)**: Local LLM reasoning utilizing Google's system-level `AICore` client API.
-  - **Fallback Chain**: Local Gemini Nano -> Private Gemini API Key -> Cloud Server Validation -> Local SigLIP.
+  - **Unified ViewModel**: Single `AiSnapQuestViewVM` in `app/src/main/` driving on-device AI verification across both Google Play and F-Droid distributions.
+  - **SigLIP 2 ONNX Suite**: 5 local vision models (`SIGLIP2_UINT8`, `SIGLIP2_INT8`, `SIGLIP2_Q4F16`, `SIGLIP2_FP16`, `SIGLIP2_FULL`) with multi-precision tensor extraction (`FLOAT`, `FLOAT16`, `BFLOAT16`, `DOUBLE`).
+  - **SentencePiece C++ JNI**: Mutex-synchronized native wrapper compiled via CMake with Android 15+ 16 KB page alignment and Gemma tokenization specs (`PAD=0L`, `EOS=1L`, `maxLength=64`).
+  - **Hardware Acceleration & Fault Recovery**: NNAPI hardware execution with automatic seamless CPU fallback upon runtime errors.
+  - **System Gemini Nano**: Google `AICore` prompt reasoning with robust JSON parsing and calibrated SigLIP 2 zero-shot fallback.
+  - **Resilient Background Downloads**: `FileDownloadWorker` supporting HTTP 206 Partial Content Range resume, dedicated tokenizer queue, non-expedited fallback, and offline catalog fallback in `ModelDownloadDialog`.
+  - **Fallback Chain**: Local SigLIP 2 ONNX / System Gemini Nano -> Calibrated SigLIP 2 Zero-Shot -> Private Gemini API Key -> Cloud Server.
 
 ---
 
@@ -59,15 +62,21 @@ Click on any image to enlarge.
 ### Prerequisites
 1. **JDK 17** (OpenJDK 17 recommended)
 2. **Android SDK** (API 36 / 34)
-3. **NDK & CMake** (Install via Android Studio SDK Manager)
+3. **NDK & CMake** (NDK 25.2.9519653, CMake 3.22.1+)
 
 ### Build Commands
 
-To build and compile both build variants:
+To run tests and compile both build variants:
 
 ```powershell
-# Compile Kotlin and generate release APKs
-.\gradlew.bat --gradle-user-home D:\PROJECTS\QuestPhone\.gradle_home assemblePlayDebug assembleFdroidDebug
+# Run the automated test suite across all modules
+.\gradlew.bat test
+
+# Compile Kotlin and generate debug APKs
+.\gradlew.bat --gradle-user-home D:\PROJECTS\Amni\AmniQuest\.gradle_home assemblePlayDebug assembleFdroidDebug
+
+# Generate release Android App Bundle (AAB)
+.\gradlew.bat --gradle-user-home D:\PROJECTS\Amni\AmniQuest\.gradle_home bundlePlayRelease
 ```
 
 ### Build Notes
@@ -76,18 +85,18 @@ To build and compile both build variants:
 > **Windows Gradle Multi-Drive Root Limitation**:
 > If your project resides on a secondary drive (e.g. `D:`) while the default Gradle cache folder is on `C:`, KSP may encounter path resolution issues. Bypass this by setting the Gradle user home directory on the same drive:
 > ```powershell
-> .\gradlew.bat --gradle-user-home D:\PROJECTS\QuestPhone\.gradle_home assemblePlayDebug assembleFdroidDebug
+> .\gradlew.bat --gradle-user-home D:\PROJECTS\Amni\AmniQuest\.gradle_home assemblePlayDebug assembleFdroidDebug
 > ```
 
 > [!NOTE]
-> **JNI Configuration on Windows**:
-> [CMakeLists.txt](file:///d:/PROJECTS/QuestPhone/ai/src/main/cpp/CMakeLists.txt) references `src/` and `src/builtin_pb/` explicitly to ensure correct native builds on Windows.
+> **Android 15+ 16 KB Memory Page Alignment**:
+> [CMakeLists.txt](ai/src/main/cpp/CMakeLists.txt) configures `-Wl,-z,max-page-size=16384` for native shared libraries, and `app/build.gradle.kts` sets `useLegacyPackaging = false` to guarantee compatibility with Android 15+ 16 KB page size devices.
 
 ---
 
 ## Roadmap
 
-- **v0.1.0**: Quantized Vision Performance (SigLIP ONNX memory & speed optimizations).
+- **v0.1.0**: Advanced Model Profiling & NPU Optimization (runtime benchmark metrics and SoC auto-tuning).
 - **v0.2.0**: Advanced Interactive Home Screen AppWidgets.
 - **v0.3.0**: Wear OS Companion App support.
 - **v0.4.0**: Optional Peer Accountability & Encrypted Challenges via Supabase.

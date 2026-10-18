@@ -2,8 +2,8 @@ package com.alhaq.amniquest.core.utils
 
 import android.content.Context
 import android.util.Log
-import android.util.Base64
 import java.security.SecureRandom
+import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.IvParameterSpec
@@ -45,13 +45,13 @@ data class BackupData(
 object BackupManager {
     private const val TAG = "BackupManager"
 
-    private val jsonSerializer = Json {
+    internal val jsonSerializer = Json {
         prettyPrint = true
         ignoreUnknownKeys = true
         encodeDefaults = true
     }
 
-    private fun encrypt(plainText: String, password: CharArray): String {
+    internal fun encrypt(plainText: String, password: CharArray): String {
         val salt = ByteArray(16).apply { SecureRandom().nextBytes(this) }
         val iv = ByteArray(16).apply { SecureRandom().nextBytes(this) }
 
@@ -70,11 +70,12 @@ object BackupManager {
         System.arraycopy(iv, 0, combined, salt.size, iv.size)
         System.arraycopy(cipherText, 0, combined, salt.size + iv.size, cipherText.size)
 
-        return Base64.encodeToString(combined, Base64.NO_WRAP)
+        return Base64.getEncoder().encodeToString(combined)
     }
 
-    private fun decrypt(combinedBase64: String, password: CharArray): String {
-        val combined = Base64.decode(combinedBase64, Base64.DEFAULT)
+    internal fun decrypt(combinedBase64: String, password: CharArray): String {
+        val combined = Base64.getMimeDecoder().decode(combinedBase64.trim())
+        require(combined.size > 32) { "Invalid encrypted backup payload" }
         val salt = ByteArray(16)
         val iv = ByteArray(16)
         val cipherText = ByteArray(combined.size - salt.size - iv.size)

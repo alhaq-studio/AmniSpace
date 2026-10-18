@@ -99,6 +99,7 @@ import com.alhaq.amniquest.backed.repositories.QuestRepository
 import com.alhaq.amniquest.backed.repositories.StatsRepository
 import com.alhaq.amniquest.backed.repositories.AppWidgetConfigDao
 import com.alhaq.amniquest.core.utils.BackupManager
+import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.ModelDownloadDialog
 
 
 @HiltViewModel
@@ -288,6 +289,12 @@ fun UserInfoScreen(viewModel: UserInfoViewModel = hiltViewModel(),navController:
 
     var isGeminiKeyDialogVisible by remember { mutableStateOf(false) }
     var isValidationEngineDialogVisible by remember { mutableStateOf(false) }
+    val isModelDownloadDialogVisible = remember { mutableStateOf(false) }
+
+    ModelDownloadDialog(
+        allowSkipping = true,
+        modelDownloadDialogVisible = isModelDownloadDialogVisible
+    )
 
     if (isGeminiKeyDialogVisible) {
         GeminiKeyDialog(
@@ -304,6 +311,8 @@ fun UserInfoScreen(viewModel: UserInfoViewModel = hiltViewModel(),navController:
                 viewModel.saveValidationEngine(engine)
                 if (engine == "gemini_api" && viewModel.getGeminiApiKey().isEmpty()) {
                     isGeminiKeyDialogVisible = true
+                } else if (engine == "local") {
+                    isModelDownloadDialogVisible.value = true
                 }
             },
             onDismiss = { isValidationEngineDialogVisible = false }
@@ -432,6 +441,9 @@ fun UserInfoScreen(viewModel: UserInfoViewModel = hiltViewModel(),navController:
                         },
                         onConfigureEngine = {
                             isValidationEngineDialogVisible = true
+                        },
+                        onManageLocalModels = {
+                            isModelDownloadDialogVisible.value = true
                         },
                         isPrivacyModeEnabled = isPrivacyModeEnabled,
                         onTogglePrivacyMode = { enabled ->
@@ -592,6 +604,7 @@ private fun Menu(
     onRestore: () -> Unit,
     onConfigureGeminiKey: () -> Unit,
     onConfigureEngine: () -> Unit,
+    onManageLocalModels: () -> Unit,
     isPrivacyModeEnabled: Boolean,
     onTogglePrivacyMode: (Boolean) -> Unit,
     onMergeOfflineData: () -> Unit
@@ -623,6 +636,14 @@ private fun Menu(
             text = { Text("AI Validation Engine") },
             onClick = {
                 onConfigureEngine()
+                expanded = false
+            }
+        )
+
+        DropdownMenuItem(
+            text = { Text("Manage Local AI Models") },
+            onClick = {
+                onManageLocalModels()
                 expanded = false
             }
         )

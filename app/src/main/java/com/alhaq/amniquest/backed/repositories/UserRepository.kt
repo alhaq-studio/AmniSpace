@@ -51,11 +51,11 @@ class UserRepository @Inject constructor(
             ""
         } else {
             val sp = context.getSharedPreferences("authtoken", Context.MODE_PRIVATE)
-            var id = sp.getString("key",null)
-            if(id!= null) return id
+            var id = sp.getString("key", null)
+            if (id != null) return id
             id = Supabase.supabase.auth.currentUserOrNull()?.id ?: return ""
-            sp.edit { putString("key",id) }
-            Supabase.supabase.auth.currentUserOrNull()!!.id
+            sp.edit { putString("key", id) }
+            id
         }
     }
 

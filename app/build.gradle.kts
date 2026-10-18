@@ -54,7 +54,9 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
-
+    }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
     dependenciesInfo {
         // Disables dependency metadata when building APKs.
@@ -144,10 +146,16 @@ dependencies {
     add("playImplementation", platform("com.google.firebase:firebase-bom:34.3.0"))
     add("playImplementation", "com.google.firebase:firebase-messaging")
     add("playImplementation", libs.play.billing)
-    add("fdroidImplementation",libs.onnxruntime.android)
-    add("fdroidImplementation",project(":ai"))
+    implementation(libs.onnxruntime.android)
+    implementation(project(":ai"))
 
     implementation(project(":data"))
     implementation(project(":core"))
     implementation(project(":backend"))
+}
+
+configurations.all {
+    resolutionStrategy {
+        force("androidx.browser:browser:1.8.0")
+    }
 }

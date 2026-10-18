@@ -49,7 +49,7 @@ import javax.inject.Singleton
 data class CommonQuestInfo(
     @PrimaryKey
     val id: String = UUID.randomUUID().toString(),
-    val user_id: String = Supabase.supabase.auth.currentUserOrNull()?.id.toString(),
+    val user_id: String = Supabase.currentUserIdOrNull().toString(),
     var title: String = "",
     var reward: Int = 5,
     var integration_id : BaseIntegrationId = BaseIntegrationId.DEEP_FOCUS,
