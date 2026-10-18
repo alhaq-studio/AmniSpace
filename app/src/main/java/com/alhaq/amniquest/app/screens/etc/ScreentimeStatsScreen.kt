@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Process
 import android.provider.Settings
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -125,13 +126,41 @@ fun ScreentimeStatsScreen() {
         }
     }
 
-    val adderPrice = userRepository?.getDistractionAdderPrice() ?: 0
-    val removerPrice = userRepository?.getDistractionRemoverPrice() ?: 50
+    val adderPrice by (userRepository?.distractionAdderPriceState ?: MutableStateFlow(0)).collectAsState()
+    val removerPrice by (userRepository?.distractionRemoverPriceState ?: MutableStateFlow(50)).collectAsState()
+    val userCoins by (userRepository?.coinsState ?: MutableStateFlow(0)).collectAsState()
     val inventoryMap by (userRepository?.inventoryState ?: MutableStateFlow(emptyMap())).collectAsState()
     val adderOwned = inventoryMap[InventoryItem.DISTRACTION_ADDER] ?: 0
     val removerOwned = inventoryMap[InventoryItem.DISTRACTION_REMOVER] ?: 0
     var blockedPackages by remember { mutableStateOf(userRepository?.getBlockedPackages() ?: emptySet()) }
     var selectedAppStat by remember { mutableStateOf<ScreentimeStat?>(null) }
+    var pendingDistractionAction by remember { mutableStateOf<PendingDistractionAction?>(null) }
+    var showToolPricingDialog by remember { mutableStateOf(false) }
+
+    fun applyDistractionAction(action: PendingDistractionAction, feedbackMsg: String) {
+        val updated = when (action) {
+            is PendingDistractionAction.SingleToggle -> {
+                blockedPackages.toMutableSet().apply {
+                    if (action.isAdding) add(action.packageName) else remove(action.packageName)
+                }
+            }
+            is PendingDistractionAction.BulkUpdate -> action.targetBlockedSet
+        }
+        blockedPackages = updated
+        userRepository?.updateBlockedAppsSet(updated)
+        distractionsPrefs.edit { putStringSet("distracting_apps", updated) }
+        sendRefreshRequest(context, INTENT_ACTION_REFRESH_APP_BLOCKER)
+        AppBlockerServiceInfo.appBlockerService?.loadLockedApps()
+        if (!AppBlockerServiceInfo.isUsingAccessibilityService && AppBlockerServiceInfo.appBlockerService == null && updated.isNotEmpty()) {
+            try {
+                ContextCompat.startForegroundService(context, Intent(context, AppBlockerService::class.java))
+            } catch (e: Exception) {
+                Log.e("ScreentimeStatsScreen", "Failed to start AppBlockerService: ${e.message}")
+            }
+        }
+        Toast.makeText(context, feedbackMsg, Toast.LENGTH_SHORT).show()
+        pendingDistractionAction = null
+    }
 
     // Load usage stats
     fun loadUsageStats(date: LocalDate = LocalDate.now()) {
@@ -182,6 +211,17 @@ fun ScreentimeStatsScreen() {
         findDataRange()
     }
 
+    // Permission Dialog
+    if (showPermissionDialog) {
+        PermissionDialog(
+            onDismiss = { showPermissionDialog = false },
+            onAccept = {
+                requestUsageStatsPermission(context)
+                showPermissionDialog = false
+            }
+        )
+    }
+
     val activeAppStat = selectedAppStat
     if (activeAppStat != null) {
         AppUsageBreakdownScreen(
@@ -193,21 +233,21 @@ fun ScreentimeStatsScreen() {
             removerPrice = removerPrice,
             adderOwned = adderOwned,
             removerOwned = removerOwned,
-            onToggleBlocked = { pkg, _ ->
-                val updated = blockedPackages.toMutableSet().apply {
-                    if (contains(pkg)) remove(pkg) else add(pkg)
-                }
-                blockedPackages = updated
-                userRepository?.updateBlockedAppsSet(updated)
-                distractionsPrefs.edit { putStringSet("distracting_apps", updated) }
-                sendRefreshRequest(context, INTENT_ACTION_REFRESH_APP_BLOCKER)
-                AppBlockerServiceInfo.appBlockerService?.loadLockedApps()
-                if (!AppBlockerServiceInfo.isUsingAccessibilityService && AppBlockerServiceInfo.appBlockerService == null && updated.isNotEmpty()) {
-                    try {
-                        ContextCompat.startForegroundService(context, Intent(context, AppBlockerService::class.java))
-                    } catch (e: Exception) {
-                        Log.e("ScreentimeStatsScreen", "Failed to start AppBlockerService: ${e.message}")
+            onToggleBlocked = { pkg, appLabel ->
+                if (userRepository != null) {
+                    val isAdding = !blockedPackages.contains(pkg)
+                    pendingDistractionAction = PendingDistractionAction.SingleToggle(
+                        packageName = pkg,
+                        appLabel = appLabel,
+                        isAdding = isAdding
+                    )
+                } else {
+                    val updated = blockedPackages.toMutableSet().apply {
+                        if (contains(pkg)) remove(pkg) else add(pkg)
                     }
+                    blockedPackages = updated
+                    distractionsPrefs.edit { putStringSet("distracting_apps", updated) }
+                    sendRefreshRequest(context, INTENT_ACTION_REFRESH_APP_BLOCKER)
                 }
             },
             onToggleIgnored = { pkg ->
@@ -223,42 +263,37 @@ fun ScreentimeStatsScreen() {
             },
             onBack = { selectedAppStat = null }
         )
-        return
-    }
-
-    // Permission Dialog
-    if (showPermissionDialog) {
-        PermissionDialog(
-            onDismiss = { showPermissionDialog = false },
-            onAccept = {
-                requestUsageStatsPermission(context)
-                showPermissionDialog = false
-            }
-        )
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("App Usage", fontWeight = FontWeight.SemiBold) },
-                actions = {
-                    IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.MoreVert, "Menu")
-                    }
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Ignored Apps") },
-                            onClick = {
-                                showMenu = false
-                                // Launch SelectAppsActivity
-                            },
-                            leadingIcon = { Icon(painter = painterResource(com.alhaq.amniquest.R.drawable.outline_lock_24), null) }
-                        )
-                    }
-                },
+    } else {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("App Usage", fontWeight = FontWeight.SemiBold) },
+                    actions = {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, "Menu")
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Tool Pricing Settings") },
+                                onClick = {
+                                    showMenu = false
+                                    showToolPricingDialog = true
+                                },
+                                leadingIcon = { Icon(Icons.Default.Settings, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Ignored Apps") },
+                                onClick = {
+                                    showMenu = false
+                                    // Launch SelectAppsActivity
+                                },
+                                leadingIcon = { Icon(painter = painterResource(com.alhaq.amniquest.R.drawable.outline_lock_24), null) }
+                            )
+                        }
+                    },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
@@ -408,6 +443,35 @@ fun ScreentimeStatsScreen() {
                 }
             }
         }
+    }
+    }
+
+    val currentPendingAction = pendingDistractionAction
+    if (currentPendingAction != null && userRepository != null) {
+        DistractionToolGateDialog(
+            action = currentPendingAction,
+            userRepository = userRepository,
+            userCoins = userCoins,
+            adderPrice = adderPrice,
+            removerPrice = removerPrice,
+            adderOwned = adderOwned,
+            removerOwned = removerOwned,
+            onDismiss = { pendingDistractionAction = null },
+            onActionApproved = { feedbackMsg ->
+                applyDistractionAction(currentPendingAction, feedbackMsg)
+            }
+        )
+    }
+
+    if (showToolPricingDialog && userRepository != null) {
+        DistractionToolPricingSettingsDialog(
+            userRepository = userRepository,
+            currentAdderPrice = adderPrice,
+            currentRemoverPrice = removerPrice,
+            userCoins = userCoins,
+            removerOwned = removerOwned,
+            onDismiss = { showToolPricingDialog = false }
+        )
     }
 }
 
