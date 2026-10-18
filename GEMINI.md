@@ -36,3 +36,11 @@ You are the Amni Ecosystem Master Agent working on **AmniQuest** (`d:\PROJECTS\A
 
 1. **Zero Emoji Policy**: Do NOT use UTF-8 emojis or emoji-based unicode characters anywhere in code, UI layouts, components, strings, comments, logs, commit messages, or documentation across any project file.
 2. **Icons**: Use Material Symbols, Vector Drawables (`ic_*.xml`), or Compose `ImageVector`. Use plain-text tags (`[OK]`, `[FAIL]`, `[INFO]`, `[WARNING]`, `[ERROR]`) for status indicators.
+
+---
+
+## 4. Central Plugin & Universal Standards
+
+- Core ecosystem standards and hooks: `C:\Users\HabiburRahman\.agents\plugins\amni-ecosystem\`
+- Project baseline: `@AGENTS.md`
+
