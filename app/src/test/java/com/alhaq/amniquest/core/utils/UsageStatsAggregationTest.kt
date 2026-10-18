@@ -235,4 +235,133 @@ class UsageStatsAggregationTest {
         // 3 days ago (offset 3)
         assertEquals(4500_000L, sevenDayMap[testDate.minusDays(3).toString()])
     }
+
+    @Test
+    fun computeSessions_returnsEmptyWhenIntervalsEmpty() {
+        val targetPkg = "com.alhaq.testapp"
+        val sessions = UsageStatsHelper.computeSessionsFromIntervals(
+            intervals = emptyList(),
+            packageName = targetPkg,
+            startBoundary = dayStartMillis,
+            endBoundary = dayEndMillis
+        )
+        assertTrue(sessions.isEmpty())
+    }
+
+    @Test
+    fun computeSessions_filtersOutIntervalsCompletelyOutsideDayBoundaries() {
+        val targetPkg = "com.alhaq.testapp"
+        val intervals = listOf(
+            // Strictly before startBoundary (yesterday afternoon)
+            UsageInterval(
+                beginTime = dayStartMillis - 7200_000L,
+                endTime = dayStartMillis - 3600_000L,
+                packageName = targetPkg
+            ),
+            // Strictly after endBoundary (tomorrow morning)
+            UsageInterval(
+                beginTime = dayEndMillis + 3600_000L,
+                endTime = dayEndMillis + 7200_000L,
+                packageName = targetPkg
+            )
+        )
+
+        val sessions = UsageStatsHelper.computeSessionsFromIntervals(
+            intervals = intervals,
+            packageName = targetPkg,
+            startBoundary = dayStartMillis,
+            endBoundary = dayEndMillis
+        )
+
+        assertTrue(sessions.isEmpty())
+    }
+
+    @Test
+    fun computeHourlyUsage_returnsAllZerosWhenIntervalsEmpty() {
+        val targetPkg = "com.alhaq.testapp"
+        val hourly = UsageStatsHelper.computeHourlyUsageFromIntervals(
+            intervals = emptyList(),
+            packageName = targetPkg,
+            dayStartZoned = dayStartZoned
+        )
+
+        assertEquals(24, hourly.size)
+        assertTrue(hourly.all { it == 0L })
+    }
+
+    @Test
+    fun computeHourlyUsage_ignoresClockSkewIntervals() {
+        val targetPkg = "com.alhaq.testapp"
+        val intervals = listOf(
+            // Backward clock jump
+            UsageInterval(
+                beginTime = dayStartMillis + 7200_000L,
+                endTime = dayStartMillis + 3600_000L,
+                packageName = targetPkg
+            ),
+            // Zero duration
+            UsageInterval(
+                beginTime = dayStartMillis + 5000L,
+                endTime = dayStartMillis + 5000L,
+                packageName = targetPkg
+            )
+        )
+
+        val hourly = UsageStatsHelper.computeHourlyUsageFromIntervals(
+            intervals = intervals,
+            packageName = targetPkg,
+            dayStartZoned = dayStartZoned
+        )
+
+        assertEquals(24, hourly.size)
+        assertTrue(hourly.all { it == 0L })
+    }
+
+    @Test
+    fun computeHourlyUsage_handlesIntervalCrossingMidnightFromYesterday() {
+        val targetPkg = "com.alhaq.testapp"
+        // 23:45 yesterday to 00:30 today (15 mins yesterday, 30 mins today in hour 0)
+        val startYesterday = dayStartZoned.minusMinutes(15).toInstant().toEpochMilli()
+        val endToday = dayStartZoned.plusMinutes(30).toInstant().toEpochMilli()
+
+        val intervals = listOf(
+            UsageInterval(beginTime = startYesterday, endTime = endToday, packageName = targetPkg)
+        )
+
+        val hourly = UsageStatsHelper.computeHourlyUsageFromIntervals(
+            intervals = intervals,
+            packageName = targetPkg,
+            dayStartZoned = dayStartZoned
+        )
+
+        assertEquals(24, hourly.size)
+        assertEquals(30 * 60 * 1000L, hourly[0])
+        for (h in 1..23) {
+            assertEquals(0L, hourly[h])
+        }
+    }
+
+    @Test
+    fun computeHourlyUsage_handlesIntervalCrossingMidnightIntoTomorrow() {
+        val targetPkg = "com.alhaq.testapp"
+        // 23:15 today to 00:45 tomorrow (45 mins today in hour 23, 45 mins tomorrow)
+        val startToday = dayStartZoned.plusHours(23).plusMinutes(15).toInstant().toEpochMilli()
+        val endTomorrow = dayStartZoned.plusHours(24).plusMinutes(45).toInstant().toEpochMilli()
+
+        val intervals = listOf(
+            UsageInterval(beginTime = startToday, endTime = endTomorrow, packageName = targetPkg)
+        )
+
+        val hourly = UsageStatsHelper.computeHourlyUsageFromIntervals(
+            intervals = intervals,
+            packageName = targetPkg,
+            dayStartZoned = dayStartZoned
+        )
+
+        assertEquals(24, hourly.size)
+        assertEquals(45 * 60 * 1000L, hourly[23])
+        for (h in 0..22) {
+            assertEquals(0L, hourly[h])
+        }
+    }
 }

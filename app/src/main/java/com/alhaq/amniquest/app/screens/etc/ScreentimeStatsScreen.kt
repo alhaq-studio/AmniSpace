@@ -328,8 +328,23 @@ fun ScreentimeStatsScreen() {
                         }
                     }
                     items(usageStats, key = { it.packageName }) { stat ->
-                        val appInfo = pm.getApplicationInfo(stat.packageName, 0)
-                        val icon = appInfo.loadIcon(pm).toBitmap().asImageBitmap()
+                        val appInfo = remember(stat.packageName) {
+                            try {
+                                pm.getApplicationInfo(stat.packageName, 0)
+                            } catch (_: Exception) {
+                                null
+                            }
+                        }
+                        val appLabel = remember(stat.packageName) {
+                            appInfo?.loadLabel(pm)?.toString() ?: stat.packageName
+                        }
+                        val icon = remember(stat.packageName) {
+                            try {
+                                appInfo?.loadIcon(pm)?.toBitmap()?.asImageBitmap()
+                            } catch (_: Exception) {
+                                null
+                            }
+                        }
 
                         Card(
                             modifier = Modifier
@@ -343,19 +358,36 @@ fun ScreentimeStatsScreen() {
                                     .padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Image(
-                                    bitmap = icon,
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                )
+                                if (icon != null) {
+                                    Image(
+                                        bitmap = icon,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.primaryContainer),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = appLabel.take(1).uppercase(),
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                }
 
                                 Spacer(modifier = Modifier.width(16.dp))
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        appInfo.loadLabel(pm).toString(),
+                                        appLabel,
                                         style = MaterialTheme.typography.bodyLarge,
                                         fontWeight = FontWeight.Medium,
                                         maxLines = 1,
@@ -455,18 +487,34 @@ fun TopAppsSection(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            val maxTime = usageStats.maxOfOrNull { it.totalTime } ?: 1L
+            val maxTime = (usageStats.maxOfOrNull { it.totalTime } ?: 1L).coerceAtLeast(1L)
 
             usageStats.forEachIndexed { index, stat ->
-                val appInfo = pm.getApplicationInfo(stat.packageName, 0)
-                val icon = appInfo.loadIcon(pm).toBitmap().asImageBitmap()
-                val percentage = (stat.totalTime.toFloat() / maxTime.toFloat())
+                val appInfo = remember(stat.packageName) {
+                    try {
+                        pm.getApplicationInfo(stat.packageName, 0)
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                val appLabel = remember(stat.packageName) {
+                    appInfo?.loadLabel(pm)?.toString() ?: stat.packageName
+                }
+                val icon = remember(stat.packageName) {
+                    try {
+                        appInfo?.loadIcon(pm)?.toBitmap()?.asImageBitmap()
+                    } catch (_: Exception) {
+                        null
+                    }
+                }
+                val percentage = (stat.totalTime.toFloat() / maxTime.toFloat()).coerceIn(0f, 1f)
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { onAppClick(stat) }
+                        .testTag("top_usage_app_card_${stat.packageName}")
                         .padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -494,19 +542,36 @@ fun TopAppsSection(
 
                     Spacer(modifier = Modifier.width(12.dp))
 
-                    Image(
-                        bitmap = icon,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                    )
+                    if (icon != null) {
+                        Image(
+                            bitmap = icon,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = appLabel.take(1).uppercase(),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.width(12.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            appInfo.loadLabel(pm).toString(),
+                            appLabel,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1,

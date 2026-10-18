@@ -907,10 +907,10 @@ private fun TimeOfDayBreakdownCard(
     hourlyUsage: List<Long>,
     totalTime: Long
 ) {
-    val morningMillis = hourlyUsage.slice(6..11).sum()
-    val afternoonMillis = hourlyUsage.slice(12..17).sum()
-    val eveningMillis = hourlyUsage.slice(18..23).sum()
-    val nightMillis = hourlyUsage.slice(0..5).sum()
+    val morningMillis = (6..11).sumOf { hourlyUsage.getOrElse(it) { 0L } }
+    val afternoonMillis = (12..17).sumOf { hourlyUsage.getOrElse(it) { 0L } }
+    val eveningMillis = (18..23).sumOf { hourlyUsage.getOrElse(it) { 0L } }
+    val nightMillis = (0..5).sumOf { hourlyUsage.getOrElse(it) { 0L } }
     val sumMillis = (morningMillis + afternoonMillis + eveningMillis + nightMillis).coerceAtLeast(1L)
 
     val periods = listOf(
