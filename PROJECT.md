@@ -11,11 +11,11 @@ For detailed technical specifications, module breakdowns, and data flow diagrams
 
 | Module | Type | Primary Responsibilities |
 | :--- | :--- | :--- |
-| **`:app`** | Android Application | Jetpack Compose presentation layer, navigation graph, unified `AiSnapQuestViewVM`, `AppBlockerService`, AppWidget hosts, and distribution flavors (`play`, `fdroid`). |
-| **`:core`** | Android Library | Background utility services, app blocking logic, screentime usage stats helpers, notification schedulers, backup manager, and crash logging. |
-| **`:data`** | Android Library | Domain data models, Kotlinx Serialization contracts, Room SQLite database schemas (`CommonQuestInfo`, `StatsInfo`, `ReminderData`), and local preferences. |
-| **`:backend`** | Android Library | Ktor HTTP client, Supabase Auth/Storage/Postgrest integration, remote task validation endpoints, and Gemini API client. |
-| **`:ai`** | Android Library | Native C++ SentencePiece tokenizer wrapper compiled via CMake and NDK with 16 KB page alignment, providing local NLP tokenization for SigLIP 2 ONNX models across all build variants. |
+| **`:app`** | Android Application | Jetpack Compose presentation layer, navigation graph, unified `AiSnapQuestViewVM`, Room SQLite database implementations (`QuestDatabase`, `StatsDatabase`, `ReminderDatabase`, `WidgetDatabase`), `AppBlockerService` foreground monitor, WorkManager background workers (`FileDownloadWorker`, `BackupWorker`, `QuestSyncWorker`, `StatsSyncWorker`), AES-256 encrypted `BackupManager`, Supabase client sync, AppWidget hosts, and distribution flavors (`play`, `fdroid`). |
+| **`:core`** | Android Library | Platform and domain utility helpers, screentime usage statistics helper (`ScreenUsageStatsHelper`), hardware & accessibility managers (`AccessibilityManager`, `PermissionManager`, `AppListManager`, `SoundManager`, `Vibrator`), offline cryptographic licensing verification (`LicenseValidator` using ECDSA NIST P-256), time tools (`TimeTools`, `UnitsFormatter`), and `ErrorLogger`. |
+| **`:data`** | Android Library | Canonical domain data models, Kotlinx Serialization contracts, quest configurations (`AiSnap`, `DeepFocus`), user profiles (`UserInfo`), screentime records (`ScreentimeStat`), game progression models (`Achievements`, `InventoryItem`, `Pet`, `StreakData`), and `EvaluationStep` status enums. |
+| **`:backend`** | Android Library | Remote task validation endpoints, multimodal Gemini 2.5 Flash API client (`GeminiValidator`), external token generation (`GenerateExtIntToken`), and Supabase task validation bridge (`AiSnapValidator`). |
+| **`:ai`** | Android Library | Native C++ SentencePiece tokenizer wrapper compiled via CMake and NDK with 16 KB page alignment (`sentencepiece_jni.cpp`), mutex synchronization, model path caching, and Kotlin JNI bridge with SigLIP 2 image preprocessing (`OneShotTools.kt`). |
 
 ---
 
@@ -26,10 +26,10 @@ For detailed technical specifications, module breakdowns, and data flow diagrams
 - Intercepts launches of user-locked apps or active Deep Focus sessions, redirecting the user to `MainActivity` to enforce quest completion or biometric verification.
 
 ### B. Unified Multi-Tier AI Validation Chain (`AiSnapQuestViewVM`)
-Unified in `app/src/main/` across all build variants. Supports four distinct validation backends configurable via user preferences (`validation_engine`):
+Unified in `app/src/main/` across all build variants. Tracks 8 real-time evaluation states (`INITIALIZING`, `LOADING_IMAGE`, `CHECKING_MODEL`, `LOADING_MODEL`, `PREPROCESSING`, `TOKENIZING`, `EVALUATING`, `COMPLETED`), memory lifecycle management, and automatic runtime fallback. Supports four distinct validation backends configurable via user preferences (`validation_engine`):
 1. **Local SigLIP 2 Zero-Shot Vision Engine (`local`)**:
    - Executes 100% on-device using ONNX Runtime and the `:ai` SentencePiece native library.
-   - Built-in catalog provides 5 quantized and full-precision models: `SIGLIP2_UINT8` (378 MB), `SIGLIP2_INT8` (450 MB), `SIGLIP2_Q4F16` (497 MB), `SIGLIP2_FP16` (751 MB), and `SIGLIP2_FULL` (1500 MB).
+   - Built-in catalog provides 5 quantized and full-precision models: `SIGLIP2_UINT8` (378 MB), `SIGLIP2_INT8` (378 MB), `SIGLIP2_Q4F16` (497 MB), `SIGLIP2_FP16` (751 MB), and `SIGLIP2_FULL` (1500 MB).
    - Multi-precision buffer extraction (`AiPipelineUtils.kt`) supports `FLOAT`, `FLOAT16` (`Fp16Conversions`), `BFLOAT16`, and `DOUBLE`. Direct NIO buffers are handled without `.array()` call crashes.
    - Hardware-accelerated via NNAPI with automatic runtime error recovery falling back to CPU.
    - Native SentencePiece JNI incorporates `std::mutex` synchronization, model path caching, Gemma tokenization specs (`PAD=0L`, `EOS=1L`, `maxLength=64`), and Android 15+ 16 KB page alignment (`-Wl,-z,max-page-size=16384`).

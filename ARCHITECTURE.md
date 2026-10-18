@@ -1,7 +1,7 @@
 # AmniQuest v0.0.1 Architecture, Blueprint & Technical Logic Specification
 
 ## Executive Overview
-**AmniQuest v0.0.1** (developed under Al-Haq Studio as part of the Amn Ecosystem) is a fresh rebuild, complete redesign, and fork of **QuestPhone** / **PhoneQuest** originally created by **Neithicle** (`neithicl`). It is an open-source, privacy-first Android minimal launcher and habit gamification framework designed to combat screen addiction by locking distracting applications behind real-life quests verified by on-device AI or external integration systems. Versioning starts fresh at **v0.0.1**.
+**AmniQuest v0.0.1** (developed under Al-Haq Studio as part of the Amn Ecosystem) is a fresh rebuild, complete redesign, and fork of [QuestPhone](https://github.com/QuestPhone/questphone) originally created by **Nethical**. It is an open-source, privacy-first Android minimal launcher and habit gamification framework designed to combat screen addiction by locking distracting applications behind real-life quests verified by on-device AI or external integration systems. Versioning starts fresh at **v0.0.1**.
 
 ---
 
@@ -11,22 +11,22 @@ The project follows a modular Clean Architecture structure using Gradle multi-pr
 
 ```
 AmniQuest (Root)
- ├── :app       (ANDROID_APP)       - UI Layer, Navigation, ViewModels, Blocker Service, Hilt Modules, AppWidgets
- ├── :core      (ANDROID_LIBRARY)   - Domain Utils, Licensing, UsageStats, Notification Schedulers, Time Tools
- ├── :data      (ANDROID_LIBRARY)   - Core Data Models, Entities, Common Quest Definitions, Preferences
- ├── :backend   (ANDROID_LIBRARY)   - Remote API Integrations, Supabase Auth/Storage/Postgrest, Gemini Validators
- └── :ai        (ANDROID_LIBRARY)   - Native SentencePiece C++ JNI, CMake compilation, Local Tokenizer
+ ├── :app       (ANDROID_APP)       - UI Layer, Navigation, ViewModels, Room DBs, AppBlockerService, WorkManager Workers, AppWidgets
+ ├── :core      (ANDROID_LIBRARY)   - Core Utilities, ECDSA NIST P-256 Licensing, UsageStats Helper, Hardware Managers, Time Tools
+ ├── :data      (ANDROID_LIBRARY)   - Canonical Domain Models, Quest & Focus Configs, Game Mechanics, Serialization Contracts
+ ├── :backend   (ANDROID_LIBRARY)   - Remote Validation Clients, Supabase DTOs, Gemini API Client
+ └── :ai        (ANDROID_LIBRARY)   - Native SentencePiece C++ JNI, CMake (16 KB Page Aligned), SigLIP 2 Preprocessing & Tokenizer
 ```
 
 ### Module Responsibilities & Dependencies
 
 | Module | Type | Responsibilities | Key Dependencies |
 | :--- | :--- | :--- | :--- |
-| **`:app`** | App | Presentation layer (Jetpack Compose), Navigation Host, ViewModels, Accessibility Service, Hilt DI bindings, AppWidget hosts, Build Flavors (`play`, `fdroid`). | `:data`, `:core`, `:backend`, `:ai` |
-| **`:core`** | Library | App blocking services, usage statistics polling, AES-256 backup logic, FCM handling, licensing validator, sound & vibration managers. | `:data` |
-| **`:data`** | Library | Canonical data representations, Kotlinx Serialization contracts, Room database schemas, Quest info classes, User profile models. | `kotlinx-datetime`, `serialization-json`, Compose Material3 |
-| **`:backend`** | Library | Ktor HTTP client, Supabase authentication & storage handlers, remote task validation endpoints, Gemini API client. | `:data`, `:core`, Ktor, WorkManager |
-| **`:ai`** | Library | Native C++ SentencePiece tokenizer wrapper compiled via CMake and NDK with 16 KB page size alignment, JNI bindings for local SigLIP 2 zero-shot vision and NLP pipelines. | Android NDK (r25c), CMake |
+| **`:app`** | App | Presentation layer (Jetpack Compose), Navigation Host, ViewModels (unified `AiSnapQuestViewVM`), Room SQLite databases (`QuestDatabase`, `StatsDatabase`, `ReminderDatabase`, `WidgetDatabase`), Foreground `AppBlockerService`, WorkManager background workers (`FileDownloadWorker`, `BackupWorker`, `QuestSyncWorker`, `StatsSyncWorker`), AES-256 encrypted `BackupManager`, Supabase Client integration (`SupabaseManager`), AppWidget hosts, and Build Flavors (`play`, `fdroid`). | `:data`, `:core`, `:backend`, `:ai`, Room, Hilt, WorkManager, Supabase |
+| **`:core`** | Library | Core platform and domain utilities: screentime helper (`ScreenUsageStatsHelper`), hardware & accessibility managers (`AccessibilityManager`, `PermissionManager`, `AppListManager`, `SoundManager`, `Vibrator`), offline cryptographic licensing verification (`LicenseValidator` using ECDSA NIST P-256), time formatting (`TimeTools`, `UnitsFormatter`), and error logging (`ErrorLogger`). | `:data`, `kotlinx-datetime`, `serialization-json` |
+| **`:data`** | Library | Canonical domain data representations, quest configurations (`AiSnap`, `DeepFocus`), user profile contracts (`UserInfo`), screentime records (`ScreentimeStat`), game progression models (`Achievements`, `InventoryItem`, `Pet`, `StreakData`), and evaluation status enums (`AiEvaluationStep`). | `kotlinx-datetime`, `serialization-json`, Compose Material3 |
+| **`:backend`** | Library | Remote task validation endpoints, multimodal Gemini 2.5 Flash API client (`GeminiValidator`), external token generation (`GenerateExtIntToken`), and Supabase task validation bridge (`AiSnapValidator`). | `:data`, `:core`, Ktor, WorkManager |
+| **`:ai`** | Library | Native C++ SentencePiece tokenizer wrapper compiled via CMake and NDK with 16 KB page size alignment (`sentencepiece_jni.cpp`), mutex synchronization, model path caching, and Kotlin JNI bridge with SigLIP 2 image preprocessing (`OneShotTools.kt`). | Android NDK (r25c), CMake |
 
 ---
 
@@ -148,7 +148,7 @@ AmniQuest gamifies productivity by requiring users to prove they completed real-
 
 ### AI Validation Architecture & Unified ViewModel
 
-The AI verification pipeline is unified across all build variants via `app/src/main/java/com/alhaq/amniquest/AiSnapQuestViewVM.kt`. It provides real-time progress steps (`INITIALIZING`, `PREPROCESSING`, `ANALYZING`, `VERIFYING`, `COMPLETED`), memory lifecycle management, and automatic runtime fallback.
+The AI verification pipeline is unified across all build variants via `app/src/main/java/com/alhaq/amniquest/AiSnapQuestViewVM.kt`. It provides real-time progress steps (`INITIALIZING`, `LOADING_IMAGE`, `CHECKING_MODEL`, `LOADING_MODEL`, `PREPROCESSING`, `TOKENIZING`, `EVALUATING`, `COMPLETED`), memory lifecycle management, and automatic runtime fallback.
 
 ```
                                   [Photo Captured by User]
@@ -196,7 +196,7 @@ AmniQuest supports four distinct validation engines:
    - Executes 100% locally on-device using ONNX Runtime (`onnxruntime-android`) and the native SentencePiece C++ JNI.
    - Built-in model catalog supports 5 quantized and full-precision variants:
      - `SIGLIP2_UINT8` (Quantized UINT8, ~378 MB): Lowest memory footprint, optimized for entry-level devices.
-     - `SIGLIP2_INT8` (Quantized INT8, ~450 MB): Balanced inference performance and memory.
+     - `SIGLIP2_INT8` (Quantized INT8, ~378 MB): Balanced inference performance and memory.
      - `SIGLIP2_Q4F16` (Quantized Q4 with FP16 outputs, ~497 MB): High precision with reduced weights.
      - `SIGLIP2_FP16` (Half-Precision Float16, ~751 MB): Native FP16 floating-point execution.
      - `SIGLIP2_FULL` (Full Precision Float32, ~1500 MB): Reference full-precision vision model.

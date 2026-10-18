@@ -16,7 +16,7 @@
 - **AES-256 Backup Encryption**: Export and import your data with high-grade PBKDF2 password-derived AES-256-CBC encryption.
 - **Habit Privacy Mode**: Hide sensitive quest titles (e.g. medical or personal habits) behind a masked state, unlocked via Android Biometrics (Fingerprint/Face/PIN/Pattern).
 - **Background Auto-Backups**: Periodically saves local rolling backups of your profile and quests in the background via Android `WorkManager`.
-- **Custom Theme Suite**: Custom themes including Cyberpunk, Nordic Frost, Solarized Sunset, Cherry Blossoms, Hacker, and Pitch Black.
+- **Custom Theme Suite**: 7 custom themes including Cyberpunk, Nordic Frost, Solarized Sunset, Cherry Blossoms, Hacker, Pitch Black, and Bonsai.
 - **Home Screen Widgets**: Track active quests, daily streaks, and coins directly from your device launcher with native AppWidgets.
 - **Sync Migrator**: Seamlessly uploads and merges offline anonymous statistics and quests to your online account upon registration or login.
 
@@ -47,8 +47,8 @@ Click on any image to enlarge.
 - **UI & State**: Jetpack Compose, Material Design 3, Dagger Hilt.
 - **Database & Sync**: Room (SQLite), Supabase Auth & Database Sync.
 - **On-Device AI Engine**:
-  - **Unified ViewModel**: Single `AiSnapQuestViewVM` in `app/src/main/` driving on-device AI verification across both Google Play and F-Droid distributions.
-  - **SigLIP 2 ONNX Suite**: 5 local vision models (`SIGLIP2_UINT8`, `SIGLIP2_INT8`, `SIGLIP2_Q4F16`, `SIGLIP2_FP16`, `SIGLIP2_FULL`) with multi-precision tensor extraction (`FLOAT`, `FLOAT16`, `BFLOAT16`, `DOUBLE`).
+  - **Unified ViewModel**: Single `AiSnapQuestViewVM` in `app/src/main/` driving on-device AI verification across both Google Play and F-Droid distributions with 8 real-time progress steps.
+  - **SigLIP 2 ONNX Suite**: 5 local vision models (`SIGLIP2_UINT8` 378 MB, `SIGLIP2_INT8` 378 MB, `SIGLIP2_Q4F16` 497 MB, `SIGLIP2_FP16` 751 MB, `SIGLIP2_FULL` 1500 MB) with multi-precision tensor extraction (`FLOAT`, `FLOAT16`, `BFLOAT16`, `DOUBLE`).
   - **SentencePiece C++ JNI**: Mutex-synchronized native wrapper compiled via CMake with Android 15+ 16 KB page alignment and Gemma tokenization specs (`PAD=0L`, `EOS=1L`, `maxLength=64`).
   - **Hardware Acceleration & Fault Recovery**: NNAPI hardware execution with automatic seamless CPU fallback upon runtime errors.
   - **System Gemini Nano**: Google `AICore` prompt reasoning with robust JSON parsing and calibrated SigLIP 2 zero-shot fallback.
