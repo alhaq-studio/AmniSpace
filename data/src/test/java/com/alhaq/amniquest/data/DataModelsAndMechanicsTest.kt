@@ -211,5 +211,17 @@ class DataModelsAndMechanicsTest {
             assertTrue("Name for ${item.name} must not be blank", item.simpleName.isNotBlank())
         }
     }
+
+    @Test
+    fun distractionTools_haveExpectedMetadataAndDescriptions() {
+        assertEquals("Distraction Adder", InventoryItem.DISTRACTION_ADDER.simpleName)
+        assertEquals("Add apps to the distraction blocklist", InventoryItem.DISTRACTION_ADDER.description)
+        assertTrue(InventoryItem.DISTRACTION_ADDER.isDirectlyUsableFromInventory)
+
+        assertEquals("Distraction Remover", InventoryItem.DISTRACTION_REMOVER.simpleName)
+        assertEquals("Remove an app from the distractions blocklist", InventoryItem.DISTRACTION_REMOVER.description)
+        assertTrue(InventoryItem.DISTRACTION_REMOVER.isDirectlyUsableFromInventory)
+        assertEquals(50, InventoryItem.DISTRACTION_REMOVER.price)
+    }
 }
 

@@ -48,24 +48,25 @@ class UserRepository @Inject constructor(
     var inventoryState = MutableStateFlow<Map<InventoryItem, Int>>(userInfo.inventory.toMap())
 
     fun getDistractionAdderPrice(): Int {
-        return userInfo.customization_info.distractionAdderPrice.coerceIn(0, 10)
+        return coerceAdderPrice(userInfo.customization_info.distractionAdderPrice)
     }
 
     fun getDistractionRemoverPrice(): Int {
-        return userInfo.customization_info.distractionRemoverPrice.coerceIn(20, 500)
+        return coerceRemoverPrice(userInfo.customization_info.distractionRemoverPrice)
     }
 
     fun getEffectivePrice(item: InventoryItem): Int {
-        return when (item) {
-            InventoryItem.DISTRACTION_ADDER -> getDistractionAdderPrice()
-            InventoryItem.DISTRACTION_REMOVER -> getDistractionRemoverPrice()
-            else -> item.price
-        }
+        return resolveEffectivePrice(
+            item = item,
+            adderPrice = userInfo.customization_info.distractionAdderPrice,
+            removerPrice = userInfo.customization_info.distractionRemoverPrice
+        )
     }
 
+    @Synchronized
     fun updateDistractionToolPrices(adderPrice: Int, removerPrice: Int) {
-        userInfo.customization_info.distractionAdderPrice = adderPrice.coerceIn(0, 10)
-        userInfo.customization_info.distractionRemoverPrice = removerPrice.coerceIn(20, 500)
+        userInfo.customization_info.distractionAdderPrice = coerceAdderPrice(adderPrice)
+        userInfo.customization_info.distractionRemoverPrice = coerceRemoverPrice(removerPrice)
         saveUserInfo()
     }
     // different SubScreen.
@@ -114,6 +115,7 @@ class UserRepository @Inject constructor(
         return false
     }
 
+    @Synchronized
     fun addItemsToInventory(items: HashMap<InventoryItem, Int>) {
         items.forEach {
             userInfo.inventory[it.key] = it.value + getInventoryItemCount(it.key)
@@ -121,7 +123,16 @@ class UserRepository @Inject constructor(
         saveUserInfo()
     }
 
+    @Synchronized
+    fun setUserInfoFromRemote(remoteInfo: UserInfo) {
+        userInfo = remoteInfo
+        saveUserInfo(isSetLastUpdated = false)
+    }
+
+    @Synchronized
     fun saveUserInfo(isSetLastUpdated: Boolean = true) {
+        userInfo.customization_info.distractionAdderPrice = getDistractionAdderPrice()
+        userInfo.customization_info.distractionRemoverPrice = getDistractionRemoverPrice()
         if (isSetLastUpdated && !userInfo.isAnonymous) {
             userInfo.last_updated = System.currentTimeMillis()
             userInfo.needsSync = true
@@ -148,11 +159,14 @@ class UserRepository @Inject constructor(
         userInfo.unlockedAndroidPackages = set.toMutableMap()
         saveUserInfo()
     }
+
+    @Synchronized
     fun deductFromInventory(item: InventoryItem, count: Int = 1) {
+        if (count <= 0) return
         val current = getInventoryItemCount(item)
         if (current > 0) {
-            val remaining = (current - count).coerceAtLeast(0)
-            if (remaining == 0) {
+            val remaining = calculateSafeInventoryDeduction(current, count)
+            if (remaining == null) {
                 userInfo.inventory.remove(item)
             } else {
                 userInfo.inventory[item] = remaining
@@ -167,14 +181,17 @@ class UserRepository @Inject constructor(
         return userInfo.unlockedAndroidPackages ?: mutableMapOf()
     }
 
+    @Synchronized
     fun useCoins(number: Int) {
-        userInfo.coins = (userInfo.coins - number).coerceAtLeast(0)
+        if (number <= 0) return
+        userInfo.coins = calculateSafeCoinDeduction(userInfo.coins, number)
         saveUserInfo()
     }
 
+    @Synchronized
     fun addCoins(addedCoins: Int) {
+        if (addedCoins <= 0) return
         userInfo.coins += addedCoins
-        coinsState.value+=addedCoins
         saveUserInfo()
     }
 
@@ -294,5 +311,38 @@ class UserRepository @Inject constructor(
         userInfo.fcm_tokens = tokens
         saveUserInfo()
         Log.d("saved Fcm token", tokens.toString())
+    }
+
+    companion object {
+        const val MIN_ADDER_PRICE = 0
+        const val MAX_ADDER_PRICE = 10
+        const val MIN_REMOVER_PRICE = 20
+        const val MAX_REMOVER_PRICE = 500
+
+        fun coerceAdderPrice(price: Int): Int = price.coerceIn(MIN_ADDER_PRICE, MAX_ADDER_PRICE)
+        fun coerceRemoverPrice(price: Int): Int = price.coerceIn(MIN_REMOVER_PRICE, MAX_REMOVER_PRICE)
+
+        fun resolveEffectivePrice(
+            item: InventoryItem,
+            adderPrice: Int,
+            removerPrice: Int
+        ): Int {
+            return when (item) {
+                InventoryItem.DISTRACTION_ADDER -> coerceAdderPrice(adderPrice)
+                InventoryItem.DISTRACTION_REMOVER -> coerceRemoverPrice(removerPrice)
+                else -> item.price
+            }
+        }
+
+        fun calculateSafeCoinDeduction(currentCoins: Int, number: Int): Int {
+            if (number <= 0) return currentCoins
+            return (currentCoins - number).coerceAtLeast(0)
+        }
+
+        fun calculateSafeInventoryDeduction(currentCount: Int, countToDeduct: Int): Int? {
+            if (countToDeduct <= 0) return currentCount
+            val remaining = (currentCount - countToDeduct).coerceAtLeast(0)
+            return if (remaining == 0) null else remaining
+        }
     }
 }
