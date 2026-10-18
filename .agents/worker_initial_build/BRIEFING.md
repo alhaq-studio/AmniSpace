@@ -3,14 +3,14 @@
 ## Mission
 Verify successful Gradle compilation of play and fdroid debug variants of the QuestPhone project.
 
-## 🔒 My Identity
+## My Identity
 - Archetype: implementer
 - Roles: implementer, qa, specialist
 - Working directory: d:\PROJECTS\QuestPhone\.agents\worker_initial_build
 - Original parent: 04ebc4a2-3002-4a92-b63b-cdcbe140320f
 - Milestone: worker_initial_build
 
-## 🔒 Key Constraints
+## Key Constraints
 - CODE_ONLY network mode: No external internet access.
 - Invocation via parent agent: Communicate results/handoff report via `send_message` to parent.
 - DO NOT CHEAT: No hardcoding test results, expected outputs, or dummy implementations.

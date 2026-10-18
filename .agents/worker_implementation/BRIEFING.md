@@ -3,14 +3,14 @@
 ## Mission
 Implement Settings UI, VM Logic Alignment, and Error Handling for the QuestPhone AI Validation system.
 
-## 🔒 My Identity
+## My Identity
 - Archetype: implementer
 - Roles: implementer, qa, specialist
 - Working directory: d:\PROJECTS\QuestPhone\.agents\worker_implementation
 - Original parent: 04ebc4a2-3002-4a92-b63b-cdcbe140320f
 - Milestone: Settings & VM alignment for AI validation
 
-## 🔒 Key Constraints
+## Key Constraints
 - Network: CODE_ONLY mode (no external web access).
 - Integrity Mandate: Do not cheat, do not hardcode values, do not use dummy/facade implementations.
 - Write only to your own folder inside `.agents/` (`d:\PROJECTS\QuestPhone\.agents\worker_implementation`).
