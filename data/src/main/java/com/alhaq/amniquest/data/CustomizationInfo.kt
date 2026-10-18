@@ -10,6 +10,8 @@ data class CustomizationInfo(
 
     var purchasedWidgets: HashSet<String> = hashSetOf("Heat Map", "Pixel Familiar"),
     var equippedWidget: String = "Heat Map",
+    var distractionAdderPrice: Int = 0,
+    var distractionRemoverPrice: Int = 50,
 
     var purchasedBackgrounds: HashSet<String> = hashSetOf("Solid Minimal", "Pixel Grid"),
     var equippedBackground: String = "Solid Minimal",

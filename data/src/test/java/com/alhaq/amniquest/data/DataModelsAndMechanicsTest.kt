@@ -181,6 +181,16 @@ class DataModelsAndMechanicsTest {
         assertTrue(decoded.isSupporter)
         assertEquals("annual", decoded.supporterTier)
         assertEquals("payload.sig", decoded.offlineLicenseKey)
+        assertEquals(0, decoded.distractionAdderPrice)
+        assertEquals(50, decoded.distractionRemoverPrice)
+
+        val customPrices = CustomizationInfo(
+            distractionAdderPrice = 5,
+            distractionRemoverPrice = 120
+        )
+        val decodedCustom = json.decodeFromString<CustomizationInfo>(json.encodeToString(customPrices))
+        assertEquals(5, decodedCustom.distractionAdderPrice)
+        assertEquals(120, decodedCustom.distractionRemoverPrice)
 
         val aiSnap = AiSnap(
             taskDescription = "Clean study desk",

@@ -29,8 +29,8 @@ enum class InventoryItem(val simpleName: String, val description: String, val ic
     QUEST_EDITOR("Quest Editor", description = "Edit information about a quest", icon = R.drawable.ic_item_quest_edit, price = 20),
     QUEST_DELETER ("Quest Deleter", description = "Destroy a quest.", icon = R.drawable.ic_item_quest_delete, price = 100),
     XP_BOOSTER ("XP Booster", description = "Get 2x more xp for the next 5 hours.", isDirectlyUsableFromInventory = true, icon = R.drawable.ic_item_xp_boost, storeCategory = StoreCategory.BOOSTERS, price = 10),
-    DISTRACTION_ADDER("Distraction Adder", description = "Add an app to the distraction list", isDirectlyUsableFromInventory = true,icon = R.drawable.ic_item_distraction_add, price = 2),
-    DISTRACTION_REMOVER("Distraction Remover", description = "Remove an app from the distractions list", isDirectlyUsableFromInventory = true ,icon = R.drawable.ic_item_distraction_remove, price = 20),
+    DISTRACTION_ADDER("Distraction Adder", description = "Add apps to the distraction blocklist", isDirectlyUsableFromInventory = true, icon = R.drawable.ic_item_distraction_add, price = 2),
+    DISTRACTION_REMOVER("Distraction Remover", description = "Remove an app from the distractions blocklist", isDirectlyUsableFromInventory = true, icon = R.drawable.ic_item_distraction_remove, price = 50),
     REWARD_TIME_EDITOR("Rewarded Screentime Editor", description = "Edit how many minutes of screentime you can buy with 1 coin", isDirectlyUsableFromInventory = true, icon = R.drawable.ic_item_screentime_reward, price = 50),
 
 }
