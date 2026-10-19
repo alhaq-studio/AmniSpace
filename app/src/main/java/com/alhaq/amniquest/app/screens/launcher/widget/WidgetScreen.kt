@@ -81,7 +81,9 @@ fun WidgetScreen(
 
     LaunchedEffect(Unit) {
         WidgetConfigureResultManager.results.collect { result ->
-            viewModel.notifyWidgetConfigured(result.appWidgetId)
+            if (result.resultCode == android.app.Activity.RESULT_OK) {
+                viewModel.notifyWidgetConfigured(result.appWidgetId)
+            }
         }
     }
 

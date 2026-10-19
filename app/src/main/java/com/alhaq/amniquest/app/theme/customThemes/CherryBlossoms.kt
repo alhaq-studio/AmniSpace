@@ -21,10 +21,10 @@ class CherryBlossomsTheme(): BaseTheme {
             tertiary = Color(0xFFFFEEF3),      // Soft blossom white-pink
             onTertiary = Color(0xFF633F4C),    // Gentle plum for text
 
-            background = Color(0xFFFFF9FB),    // Very pale blossom white 🌸
+            background = Color(0xFFFFF9FB),    // Very pale blossom white
             onBackground = Color(0xFF3D1F2D),  // Dark sakura branch tone
 
-            surface = Color(0xFFFFCFE1),       // Cherry blossom surface pink 🌸✨
+            surface = Color(0xFFFFCFE1),       // Cherry blossom surface pink
             onSurface = Color(0xFF40222D),     // Warm brownish text
             surfaceVariant = Color.White,
 
@@ -60,7 +60,7 @@ class CherryBlossomsTheme(): BaseTheme {
     override val description: String
         get() = "花は桜木、人は武士"
     override val expandQuestsText: String
-        get() = "✿✿✿✿✿✿✿"
+        get() = "~ ~ ~ ~ ~ ~ ~"
     override val docLink: String?
         get() = "https://raw.githubusercontent.com/QuestPhone/docs/main/theme/cherryBlossom/cherryblossom.md"
 }

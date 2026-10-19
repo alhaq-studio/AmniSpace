@@ -138,10 +138,15 @@ class LauncherAppWidgetHostView(context: Context) : AppWidgetHostView(context) {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
-        if (ev != null && hasScrollableChild(this)) {
+        if (ev != null) {
             when (ev.actionMasked) {
-                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
-                    parent?.requestDisallowInterceptTouchEvent(true)
+                MotionEvent.ACTION_DOWN -> {
+                    if (hasScrollableChild(this)) {
+                        parent?.requestDisallowInterceptTouchEvent(true)
+                    }
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    parent?.requestDisallowInterceptTouchEvent(false)
                 }
             }
         }
@@ -265,13 +270,15 @@ private fun enableNestedScroll(view: View) {
             enableNestedScroll(child)
         }
     }
-    if (view is ListView || view is ScrollView || view is GridView) {
+    if (view is ListView || view is ScrollView || view is android.widget.HorizontalScrollView || view is GridView) {
         view.isNestedScrollingEnabled = true
     }
 }
 
 private fun hasScrollableChild(view: View): Boolean {
-    if (view is ListView || view is ScrollView || view is GridView || view is StackView || view is AdapterViewFlipper) {
+    if (view is ListView || view is ScrollView || view is android.widget.HorizontalScrollView ||
+        view is GridView || view is StackView || view is AdapterViewFlipper
+    ) {
         return true
     }
     if (view is ViewGroup) {

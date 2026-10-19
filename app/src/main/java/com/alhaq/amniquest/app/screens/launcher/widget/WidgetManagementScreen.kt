@@ -158,6 +158,34 @@ fun WidgetManagementScreen(
     val appWidgetHost = LocalAppWidgetHost.current
     val appWidgetManager = remember(context) { AppWidgetManager.getInstance(context) }
 
+    fun handleConfigureResult(widgetId: Int, resultCode: Int) {
+        val isNew = (widgetId == pendingBindWidgetId && uiState.widgets.none { it.widgetId == widgetId })
+        if (resultCode == Activity.RESULT_OK) {
+            val info = appWidgetManager.getAppWidgetInfo(widgetId) ?: pendingBindProvider
+            if (info != null) {
+                viewModel.addWidget(widgetId, info)
+                viewModel.notifyWidgetConfigured(widgetId)
+            }
+        } else if (isNew) {
+            try {
+                appWidgetHost.deleteAppWidgetId(widgetId)
+            } catch (e: Exception) {
+                Log.w("WidgetManagement", "Failed to delete canceled widget id $widgetId", e)
+            }
+            viewModel.removeWidget(widgetId)
+        }
+        if (widgetId == pendingBindWidgetId) {
+            pendingBindWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+            pendingBindProvider = null
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        WidgetConfigureResultManager.results.collect { result ->
+            handleConfigureResult(result.appWidgetId, result.resultCode)
+        }
+    }
+
     val configureWidgetFallbackLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             val widgetId = result.data?.getIntExtra(
@@ -166,14 +194,11 @@ fun WidgetManagementScreen(
             )?.takeIf { it != AppWidgetManager.INVALID_APPWIDGET_ID } ?: pendingBindWidgetId
 
             if (widgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-                val info = appWidgetManager.getAppWidgetInfo(widgetId) ?: pendingBindProvider
-                if (info != null) {
-                    viewModel.addWidget(widgetId, info)
-                    viewModel.notifyWidgetConfigured(widgetId)
-                }
+                handleConfigureResult(widgetId, result.resultCode)
+            } else {
+                pendingBindWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+                pendingBindProvider = null
             }
-            pendingBindWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
-            pendingBindProvider = null
         }
 
     fun launchWidgetConfiguration(appWidgetId: Int, info: AppWidgetProviderInfo) {
@@ -196,17 +221,28 @@ fun WidgetManagementScreen(
                 configureWidgetFallbackLauncher.launch(configIntent)
             } catch (e: Exception) {
                 Log.e("WidgetManagement", "Fallback configure intent failed for $appWidgetId", e)
+                if (uiState.widgets.none { it.widgetId == appWidgetId }) {
+                    try {
+                        appWidgetHost.deleteAppWidgetId(appWidgetId)
+                    } catch (_: Exception) {}
+                    viewModel.removeWidget(appWidgetId)
+                }
+                pendingBindWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+                pendingBindProvider = null
             }
         }
     }
 
     fun onWidgetBoundSuccessfully(appWidgetId: Int, info: AppWidgetProviderInfo) {
-        viewModel.addWidget(appWidgetId, info)
+        val isConfigOptional = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+            (info.widgetFeatures and AppWidgetProviderInfo.WIDGET_FEATURE_CONFIGURATION_OPTIONAL) != 0
+        val requiresConfig = info.configure != null && !isConfigOptional
 
-        if (info.configure != null) {
-            val isConfigOptional = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
-                (info.widgetFeatures and AppWidgetProviderInfo.WIDGET_FEATURE_CONFIGURATION_OPTIONAL) != 0
-            if (!isConfigOptional) {
+        if (requiresConfig) {
+            launchWidgetConfiguration(appWidgetId, info)
+        } else {
+            viewModel.addWidget(appWidgetId, info)
+            if (info.configure != null) {
                 launchWidgetConfiguration(appWidgetId, info)
             }
         }
@@ -1100,8 +1136,13 @@ private fun DrawableImage(
 
 private fun Drawable.toImageBitmapOrNull(): ImageBitmap? {
     return try {
-        if (this is BitmapDrawable && this.bitmap != null) {
-            return this.bitmap.asImageBitmap()
+        if (this is BitmapDrawable && this.bitmap != null && !this.bitmap.isRecycled) {
+            val bmp = this.bitmap
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && bmp.config == Bitmap.Config.HARDWARE) {
+                val softwareBmp = bmp.copy(Bitmap.Config.ARGB_8888, false)
+                return softwareBmp?.asImageBitmap() ?: bmp.asImageBitmap()
+            }
+            return bmp.asImageBitmap()
         }
         val w = intrinsicWidth.takeIf { it > 0 } ?: 128
         val h = intrinsicHeight.takeIf { it > 0 } ?: 128

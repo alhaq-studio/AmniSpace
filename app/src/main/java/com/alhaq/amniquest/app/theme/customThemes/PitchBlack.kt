@@ -48,5 +48,5 @@ class PitchBlackTheme(): BaseTheme{
     override val description: String
         get() = "Into Nothingness"
     override val expandQuestsText: String
-        get() = "✦✦✦✦✦✦✦"
+        get() = "+ + + + + + +"
 }

@@ -164,7 +164,7 @@ class WidgetViewModel @Inject constructor(
                         for (profile in profiles) {
                             runCatching {
                                 appWidgetManager.getInstalledProvidersForProfile(profile).forEach { info ->
-                                    val key = "${info.provider.flattenToString()}_${info.profile.hashCode()}"
+                                    val key = "${info.provider?.flattenToString().orEmpty()}_${info.profile?.hashCode() ?: 0}"
                                     allProviders[key] = info
                                 }
                             }
@@ -174,7 +174,7 @@ class WidgetViewModel @Inject constructor(
                     // Standard getInstalledProviders
                     runCatching {
                         appWidgetManager.installedProviders.forEach { info ->
-                            val key = "${info.provider.flattenToString()}_${info.profile.hashCode()}"
+                            val key = "${info.provider?.flattenToString().orEmpty()}_${info.profile?.hashCode() ?: 0}"
                             allProviders[key] = info
                         }
                     }
@@ -191,7 +191,7 @@ class WidgetViewModel @Inject constructor(
                                 for (profile in profiles) {
                                     runCatching {
                                         appWidgetManager.getInstalledProvidersForPackage(pkg, profile).forEach { info ->
-                                            val key = "${info.provider.flattenToString()}_${info.profile.hashCode()}"
+                                            val key = "${info.provider?.flattenToString().orEmpty()}_${info.profile?.hashCode() ?: 0}"
                                             allProviders[key] = info
                                         }
                                     }
@@ -199,7 +199,7 @@ class WidgetViewModel @Inject constructor(
                             } else {
                                 runCatching {
                                     appWidgetManager.getInstalledProvidersForPackage(pkg, null).forEach { info ->
-                                        val key = "${info.provider.flattenToString()}_${info.profile.hashCode()}"
+                                        val key = "${info.provider?.flattenToString().orEmpty()}_${info.profile?.hashCode() ?: 0}"
                                         allProviders[key] = info
                                     }
                                 }
@@ -207,7 +207,7 @@ class WidgetViewModel @Inject constructor(
                         }
                     }
 
-                    val byPackage = allProviders.values.groupBy { it.provider.packageName }
+                    val byPackage = allProviders.values.groupBy { it.provider?.packageName.orEmpty() }.filterKeys { it.isNotEmpty() }
 
                     byPackage.mapNotNull { (pkgName, providerList) ->
                         val appInfo = runCatching { pm.getApplicationInfo(pkgName, 0) }.getOrNull()
@@ -281,7 +281,7 @@ class WidgetViewModel @Inject constructor(
                 val currentOrder = _uiState.value.widgets.size
 
                 val config = AppWidgetConfig(
-                    id = "${widgetInfo.provider.packageName}_${widgetInfo.provider.className}_$widgetId",
+                    id = "${widgetInfo.provider?.packageName.orEmpty()}_${widgetInfo.provider?.className.orEmpty()}_$widgetId",
                     widgetId = widgetId,
                     height = defaultHeightDp,
                     width = defaultWidthDp,
@@ -327,10 +327,14 @@ class WidgetViewModel @Inject constructor(
                     withContext(Dispatchers.IO) {
                         repository.deleteConfig(widget.config)
                     }
-                    _uiState.value = _uiState.value.copy(
-                        widgets = _uiState.value.widgets.filter { it.widgetId != widgetId }
-                    )
+                } else {
+                    withContext(Dispatchers.IO) {
+                        repository.getConfigById(widgetId)?.let { repository.deleteConfig(it) }
+                    }
                 }
+                _uiState.value = _uiState.value.copy(
+                    widgets = _uiState.value.widgets.filter { it.widgetId != widgetId }
+                )
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     error = "Failed to remove widget: ${e.message}"
@@ -371,6 +375,9 @@ class WidgetViewModel @Inject constructor(
     fun clearAllWidgets() {
         viewModelScope.launch {
             try {
+                withContext(Dispatchers.IO) {
+                    repository.deleteAllConfigs()
+                }
                 _uiState.value = _uiState.value.copy(widgets = emptyList())
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(

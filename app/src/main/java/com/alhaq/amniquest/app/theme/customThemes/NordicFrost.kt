@@ -45,5 +45,5 @@ class NordicFrostTheme(): BaseTheme {
         get() = "Arctic Clarity & Focus"
 
     override val expandQuestsText: String
-        get() = "❄️❄️❄️❄️❄️❄️❄️"
+        get() = "* * * * * * *"
 }

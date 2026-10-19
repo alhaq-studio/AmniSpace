@@ -242,6 +242,77 @@ class WidgetCatalogAndSizingTest {
         assertTrue(result.isEmpty())
     }
 
+    @Test
+    fun testCalculateWidgetCells_bothTargetCellsClamped() {
+        val (cellsW, cellsH) = calculateWidgetCells(
+            density = 2.0f,
+            minWidthPx = 500,
+            minHeightPx = 500,
+            targetCellWidth = 10,
+            targetCellHeight = 8
+        )
+        // Both exceed max allowed cell span of 5 -> clamped to (5, 5)
+        assertEquals(5, cellsW)
+        assertEquals(5, cellsH)
+    }
+
+    @Test
+    fun testCalculateDefaultWidgetSizeDp_aspectRatioBoundaries() {
+        // Very tall widget (minWidth 80px, minHeight 1200px at density 2.0f)
+        val (wTall, hTall) = calculateDefaultWidgetSizeDp(
+            screenWidthPixels = 1080,
+            density = 2.0f,
+            minWidthPx = 80,
+            minHeightPx = 1200
+        )
+        assertEquals(160, wTall)
+        assertEquals(380, hTall) // clamped to max 380dp
+
+        // Very wide widget (minWidth 800px, minHeight 40px at density 2.0f)
+        val (wWide, hWide) = calculateDefaultWidgetSizeDp(
+            screenWidthPixels = 1080,
+            density = 2.0f,
+            minWidthPx = 800,
+            minHeightPx = 40
+        )
+        assertEquals(508, wWide) // capped to maxAvailableWidthDp
+        assertEquals(110, hWide) // clamped to min 110dp
+    }
+
+    @Test
+    fun testFilterAvailableWidgetGroups_onlyMatchingWidgetsPreservedInGroup() {
+        val itemMatch = createDummyItem("Battery Percentage", "Shows battery level")
+        val itemOther1 = createDummyItem("Wi-Fi Quick Switch", "Toggle wireless")
+        val itemOther2 = createDummyItem("Bluetooth Status", "Device pairing")
+        val group = AvailableWidgetGroup(
+            packageName = "com.android.settings",
+            appName = "System Settings",
+            appIcon = null,
+            widgets = listOf(itemMatch, itemOther1, itemOther2)
+        )
+
+        val result = filterAvailableWidgetGroups(listOf(group), "battery")
+        assertEquals(1, result.size)
+        assertEquals(1, result[0].widgets.size)
+        assertEquals("Battery Percentage", result[0].widgets[0].label)
+    }
+
+    @Test
+    fun testFilterAvailableWidgetGroups_caseInsensitiveAndWhitespaceTrim() {
+        val item = createDummyItem("Calendar Agenda", "Upcoming events")
+        val group = AvailableWidgetGroup(
+            packageName = "com.google.android.calendar",
+            appName = "Google Calendar",
+            appIcon = null,
+            widgets = listOf(item)
+        )
+
+        val result = filterAvailableWidgetGroups(listOf(group), "   AgEnDa   ")
+        assertEquals(1, result.size)
+        assertEquals(1, result[0].widgets.size)
+        assertEquals("Calendar Agenda", result[0].widgets[0].label)
+    }
+
     private fun createDummyItem(label: String, description: String?): AvailableWidgetItem {
         val dummyInfo = AppWidgetProviderInfo()
         return AvailableWidgetItem(

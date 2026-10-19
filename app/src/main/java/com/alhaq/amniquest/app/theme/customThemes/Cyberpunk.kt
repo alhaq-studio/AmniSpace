@@ -45,5 +45,5 @@ class CyberpunkTheme(): BaseTheme {
         get() = "Welcome to Night City"
 
     override val expandQuestsText: String
-        get() = "⚡⚡⚡⚡⚡⚡⚡"
+        get() = ">>>>>>>"
 }

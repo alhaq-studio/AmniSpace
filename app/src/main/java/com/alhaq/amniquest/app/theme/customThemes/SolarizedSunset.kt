@@ -45,5 +45,5 @@ class SolarizedSunsetTheme(): BaseTheme {
         get() = "Warm Amber Oasis"
 
     override val expandQuestsText: String
-        get() = "🌅🌅🌅🌅🌅🌅🌅"
+        get() = "= = = = = = ="
 }
