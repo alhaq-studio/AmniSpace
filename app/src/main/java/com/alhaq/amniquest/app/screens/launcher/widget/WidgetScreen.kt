@@ -1,11 +1,13 @@
 package com.alhaq.amniquest.app.screens.launcher.widget
 
-import android.appwidget.AppWidgetHost
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,9 +20,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -29,9 +33,11 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,14 +49,15 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavController
-import kotlinx.coroutines.awaitCancellation
 import com.alhaq.amniquest.app.navigation.RootRoute
 import com.alhaq.amniquest.app.screens.launcher.widget.picker.PersistedWidget
 import com.alhaq.amniquest.app.screens.launcher.widget.picker.WidgetViewModel
@@ -63,8 +70,8 @@ fun WidgetScreen(
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var isWidgetManagement by remember { mutableStateOf(false) }
+    var autoOpenPicker by remember { mutableStateOf(false) }
 
-    // Show error messages
     LaunchedEffect(uiState.error) {
         uiState.error?.let { error ->
             snackbarHostState.showSnackbar(error)
@@ -72,25 +79,40 @@ fun WidgetScreen(
         }
     }
 
-    BackHandler(isWidgetManagement) { isWidgetManagement = false }
+    LaunchedEffect(Unit) {
+        WidgetConfigureResultManager.results.collect { result ->
+            viewModel.notifyWidgetConfigured(result.appWidgetId)
+        }
+    }
+
+    BackHandler(isWidgetManagement) {
+        isWidgetManagement = false
+        autoOpenPicker = false
+    }
+
     ProvideAppWidgetHost {
         if (!isWidgetManagement) {
-            val context = LocalContext.current
-            val appWidgetHost = LocalAppWidgetHost.current
-
             val listState = rememberLazyListState()
-            var pulledDownHard by remember { mutableStateOf(false) }
-            // NestedScroll to capture overscroll
-            val nestedScrollConnection = remember {
+            val density = LocalDensity.current
+            val pullThresholdPx = with(density) { 120.dp.toPx() }
+            var overscrollPullPx by remember { mutableFloatStateOf(0f) }
+            var navigatedHome by remember { mutableStateOf(false) }
+
+            val nestedScrollConnection = remember(pullThresholdPx) {
                 object : NestedScrollConnection {
-                    override fun onPreScroll(
+                    override fun onPostScroll(
+                        consumed: Offset,
                         available: Offset,
                         source: NestedScrollSource
                     ): Offset {
-                        // User is scrolling down (pulling) AND at the top
-                        if (available.y > 0 && listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0) {
-                            if (!pulledDownHard) {
-                                pulledDownHard = true
+                        if (source == NestedScrollSource.UserInput &&
+                            available.y > 0f &&
+                            listState.firstVisibleItemIndex == 0 &&
+                            listState.firstVisibleItemScrollOffset == 0
+                        ) {
+                            overscrollPullPx += available.y
+                            if (overscrollPullPx >= pullThresholdPx && !navigatedHome) {
+                                navigatedHome = true
                                 if (!navController.popBackStack()) {
                                     navController.navigate(RootRoute.HomeScreen.route) {
                                         launchSingleTop = true
@@ -98,11 +120,22 @@ fun WidgetScreen(
                                     }
                                 }
                             }
+                        } else if (available.y < 0f || consumed.y < 0f) {
+                            overscrollPullPx = 0f
                         }
                         return Offset.Zero
                     }
+
+                    override suspend fun onPostFling(
+                        consumed: Velocity,
+                        available: Velocity
+                    ): Velocity {
+                        overscrollPullPx = 0f
+                        return Velocity.Zero
+                    }
                 }
             }
+
             Scaffold(
                 snackbarHost = { SnackbarHost(snackbarHostState) },
             ) { padding ->
@@ -112,10 +145,12 @@ fun WidgetScreen(
                         .nestedScroll(nestedScrollConnection)
                 ) {
                     Column(
-                        modifier = Modifier.padding(padding).padding(16.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                            .padding(horizontal = 12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-
                         when {
                             uiState.isLoading -> {
                                 Box(
@@ -132,19 +167,33 @@ fun WidgetScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.padding(24.dp)
                                     ) {
                                         Text(
                                             text = "No widgets added yet",
-                                            style = MaterialTheme.typography.bodyLarge,
+                                            style = MaterialTheme.typography.titleMedium,
                                             textAlign = TextAlign.Center
                                         )
-                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = "Add Android and app widgets to view them right from your launcher.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Spacer(modifier = Modifier.height(20.dp))
                                         Button(
                                             onClick = {
+                                                autoOpenPicker = true
                                                 isWidgetManagement = true
                                             }
                                         ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Add,
+                                                contentDescription = null
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
                                             Text("Add Your First Widget")
                                         }
                                     }
@@ -152,26 +201,49 @@ fun WidgetScreen(
                             }
 
                             else -> {
-
                                 LazyColumn(
                                     modifier = Modifier
+                                        .fillMaxSize()
                                         .consumeWindowInsets(padding),
                                     state = listState,
+                                    contentPadding = PaddingValues(vertical = 16.dp),
                                     verticalArrangement = Arrangement.spacedBy(16.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    items(uiState.widgets) { persistedWidget ->
+                                    items(
+                                        items = uiState.widgets,
+                                        key = { it.widgetId }
+                                    ) { persistedWidget ->
                                         WidgetCard(
                                             persistedWidget = persistedWidget,
+                                            refreshTrigger = uiState.refreshTrigger
                                         )
                                     }
                                     item {
-
-                                        if (uiState.widgets.isNotEmpty()) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
+                                        ) {
+                                            FilledTonalButton(
+                                                onClick = {
+                                                    autoOpenPicker = true
+                                                    isWidgetManagement = true
+                                                }
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Add,
+                                                    contentDescription = "Add Widget"
+                                                )
+                                                Spacer(Modifier.size(8.dp))
+                                                Text("Add Widget")
+                                            }
                                             Button(
                                                 onClick = {
+                                                    autoOpenPicker = false
                                                     isWidgetManagement = true
-                                                }) {
+                                                }
+                                            ) {
                                                 Icon(
                                                     imageVector = Icons.Default.Edit,
                                                     contentDescription = "Edit Widgets"
@@ -187,53 +259,96 @@ fun WidgetScreen(
                     }
                 }
             }
-        }else{
-            WidgetManagementScreen(viewModel)
+        } else {
+            WidgetManagementScreen(
+                viewModel = viewModel,
+                initialOpenPicker = autoOpenPicker,
+                onConsumeInitialOpenPicker = { autoOpenPicker = false },
+                onBack = {
+                    isWidgetManagement = false
+                    autoOpenPicker = false
+                }
+            )
         }
-
     }
 }
+
 @Composable
 private fun WidgetCard(
     persistedWidget: PersistedWidget,
+    refreshTrigger: Int = 0
 ) {
-    Column(
-        modifier = Modifier.padding(16.dp)
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
     ) {
+        val availableWidth = maxWidth
+        val targetWidth = (persistedWidget.config.width?.dp ?: availableWidth)
+            .coerceIn(120.dp, availableWidth.coerceAtLeast(120.dp))
+        val targetHeight = persistedWidget.config.height.dp
+            .coerceIn(80.dp, 520.dp)
+
         Box(
             modifier = Modifier
-                .width(persistedWidget.config.width?.dp ?: 200.dp)
-                .height(persistedWidget.config.height.dp)
+                .width(targetWidth)
+                .height(targetHeight)
         ) {
             AppWidgetHost(
                 widgetInfo = persistedWidget.widgetInfo,
                 widgetId = persistedWidget.widgetId,
-                modifier = Modifier.fillMaxWidth()
+                borderless = persistedWidget.config.borderless,
+                useThemeColors = persistedWidget.config.themeColors,
+                refreshKey = refreshTrigger,
+                modifier = Modifier.fillMaxSize()
             )
         }
     }
 }
 
 val LocalAppWidgetHost =
-    staticCompositionLocalOf<AppWidgetHost> { error("AppWidgetHost not provided") }
+    staticCompositionLocalOf<LauncherAppWidgetHost> { error("AppWidgetHost not provided") }
 
 @Composable
 fun ProvideAppWidgetHost(content: @Composable () -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
-    val widgetHost = remember { AppWidgetHost(context.applicationContext, 44203) }
-
-    LaunchedEffect(Unit) {
-        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            widgetHost.startListening()
+    val widgetHost = remember {
+        LauncherAppWidgetHost(context.applicationContext, APPWIDGET_HOST_ID).also { host ->
             try {
-                awaitCancellation()
-            } finally {
-                try {
-                    widgetHost.stopListening()
-                } catch (e: Exception) {
-                    Log.e("WidgetHost", "Error stopping listener", e)
+                host.startListening()
+            } catch (e: Exception) {
+                Log.e("WidgetHost", "Error starting listener initially", e)
+            }
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, widgetHost) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> {
+                    try {
+                        widgetHost.startListening()
+                    } catch (e: Exception) {
+                        Log.e("WidgetHost", "Error starting listener on ON_START", e)
+                    }
                 }
+                Lifecycle.Event.ON_STOP -> {
+                    try {
+                        widgetHost.stopListening()
+                    } catch (e: Exception) {
+                        Log.e("WidgetHost", "Error stopping listener on ON_STOP", e)
+                    }
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            try {
+                widgetHost.stopListening()
+            } catch (e: Exception) {
+                Log.e("WidgetHost", "Error stopping listener on dispose", e)
             }
         }
     }

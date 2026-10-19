@@ -19,7 +19,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="⚔️ Quest Tracker"
+            android:text="[Quest] Quest Tracker"
             android:textColor="#FFFFFF"
             android:textSize="14sp"
             android:textStyle="bold" />
@@ -28,7 +28,7 @@
             android:id="@+id/widget_coins"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="🪙 0"
+            android:text="Coins: 0"
             android:textColor="#F59E0B"
             android:textSize="12sp"
             android:textStyle="bold" />
@@ -53,7 +53,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="🔥 Streak: 0 days"
+            android:text="Streak: 0 days"
             android:textColor="#00F0FF"
             android:textSize="12sp" />
 
@@ -61,7 +61,7 @@
             android:id="@+id/widget_level"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="⭐ Lvl 1"
+            android:text="Lvl 1"
             android:textColor="#38BDF8"
             android:textSize="12sp" />
     </LinearLayout>

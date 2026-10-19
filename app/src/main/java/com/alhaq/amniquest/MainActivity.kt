@@ -310,6 +310,16 @@ class MainActivity : FragmentActivity() {
         handleNotificationIntent(intent)
         super.onResume()
     }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        com.alhaq.amniquest.app.screens.launcher.widget.WidgetConfigureResultManager.onActivityResult(
+            requestCode,
+            resultCode,
+            data
+        )
+    }
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleNotificationIntent(intent)

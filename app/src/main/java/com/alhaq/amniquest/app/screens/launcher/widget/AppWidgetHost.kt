@@ -1,14 +1,28 @@
 package com.alhaq.amniquest.app.screens.launcher.widget
 
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.app.ActivityOptions
+import android.appwidget.AppWidgetHostView
+import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
+import android.content.Context
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
+import android.util.SizeF
 import android.util.SparseIntArray
+import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AdapterViewFlipper
+import android.widget.GridView
 import android.widget.ListView
+import android.widget.RemoteViews
 import android.widget.ScrollView
+import android.widget.StackView
+import android.widget.TextView
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -25,7 +40,123 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.iterator
 import androidx.core.view.setPadding
 import com.alhaq.amniquest.core.core.utils.material_color_utils.palettes.TonalPalette
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlin.math.roundToInt
+
+const val APPWIDGET_HOST_ID = 44203
+const val REQUEST_CODE_CONFIGURE_WIDGET = 44204
+
+data class WidgetConfigureResult(
+    val appWidgetId: Int,
+    val resultCode: Int
+)
+
+object WidgetConfigureResultManager {
+    private var pendingWidgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID
+    private val _results = MutableSharedFlow<WidgetConfigureResult>(extraBufferCapacity = 4)
+    val results: SharedFlow<WidgetConfigureResult> = _results.asSharedFlow()
+
+    fun setPendingWidgetId(appWidgetId: Int) {
+        pendingWidgetId = appWidgetId
+    }
+
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        if (requestCode == REQUEST_CODE_CONFIGURE_WIDGET) {
+            val idFromIntent = data?.getIntExtra(
+                AppWidgetManager.EXTRA_APPWIDGET_ID,
+                AppWidgetManager.INVALID_APPWIDGET_ID
+            ) ?: AppWidgetManager.INVALID_APPWIDGET_ID
+
+            val resolvedId = if (idFromIntent != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                idFromIntent
+            } else {
+                pendingWidgetId
+            }
+
+            pendingWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID
+            if (resolvedId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                _results.tryEmit(WidgetConfigureResult(resolvedId, resultCode))
+            }
+        }
+    }
+}
+
+class LauncherAppWidgetHost(
+    context: Context,
+    hostId: Int = APPWIDGET_HOST_ID
+) : android.appwidget.AppWidgetHost(context, hostId) {
+
+    override fun onCreateView(
+        context: Context,
+        appWidgetId: Int,
+        appWidget: AppWidgetProviderInfo?
+    ): AppWidgetHostView {
+        return LauncherAppWidgetHostView(context)
+    }
+
+    fun startConfigureActivity(activity: Activity, appWidgetId: Int): Boolean {
+        return try {
+            WidgetConfigureResultManager.setPendingWidgetId(appWidgetId)
+            val options = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                ActivityOptions.makeBasic()
+                    .setPendingIntentBackgroundActivityStartMode(
+                        ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                    )
+                    .toBundle()
+            } else {
+                null
+            }
+            startAppWidgetConfigureActivityForResult(
+                activity,
+                appWidgetId,
+                0,
+                REQUEST_CODE_CONFIGURE_WIDGET,
+                options
+            )
+            true
+        } catch (e: Exception) {
+            Log.e("LauncherAppWidgetHost", "Failed to start configure activity for widget $appWidgetId", e)
+            WidgetConfigureResultManager.setPendingWidgetId(AppWidgetManager.INVALID_APPWIDGET_ID)
+            false
+        }
+    }
+}
+
+class LauncherAppWidgetHostView(context: Context) : AppWidgetHostView(context) {
+    var lastWidthDp: Int = -1
+    var lastHeightDp: Int = -1
+
+    override fun updateAppWidget(remoteViews: RemoteViews?) {
+        try {
+            super.updateAppWidget(remoteViews)
+            enableNestedScroll(this)
+        } catch (e: Exception) {
+            Log.e("LauncherWidgetHostView", "Error applying RemoteViews", e)
+        }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        if (ev != null && hasScrollableChild(this)) {
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                }
+            }
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
+    override fun getErrorView(): View {
+        return TextView(context).apply {
+            text = "Unable to load widget. Tap Edit Widgets to resize or reconfigure."
+            gravity = Gravity.CENTER
+            textSize = 12f
+            setPadding(24, 24, 24, 24)
+        }
+    }
+}
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
@@ -36,52 +167,95 @@ fun AppWidgetHost(
     borderless: Boolean = false,
     useThemeColors: Boolean = false,
     onLightBackground: Boolean = false,
+    refreshKey: Int = 0
 ) {
-    val padding = if (borderless) 0 else 8.dp.toPixels().roundToInt()
+    val padding = if (borderless) 0 else 4.dp.toPixels().roundToInt()
 
     val colorScheme = MaterialTheme.colorScheme
     val appWidgetHost = LocalAppWidgetHost.current
+    val activityContext = LocalContext.current
 
     BoxWithConstraints(
         modifier = modifier,
     ) {
-        val maxWidth = maxWidth
-        val maxHeight = maxHeight
-        key(widgetId) {
+        val widthDp = maxWidth.value.roundToInt().coerceAtLeast(60)
+        val heightDp = maxHeight.value.roundToInt().coerceAtLeast(60)
+
+        key(widgetId, refreshKey) {
             AndroidView(
-                modifier = modifier
-                    .fillMaxSize(),
+                modifier = Modifier.fillMaxSize(),
                 factory = {
-                    val view = appWidgetHost.createView(it.applicationContext, widgetId, widgetInfo)
+                    val view = appWidgetHost.createView(activityContext, widgetId, widgetInfo)
+                    view.setAppWidget(widgetId, widgetInfo)
                     enableNestedScroll(view)
-                    return@AndroidView view
+                    applyWidgetDimensions(view, activityContext, widgetId, widthDp, heightDp)
+                    view
                 },
-                update = {
-                    if (Build.VERSION.SDK_INT >= (29)) {
-                        it.setOnLightBackground(onLightBackground)
-                    }
-                    if (Build.VERSION.SDK_INT >= (31)) {
-                        if (useThemeColors) {
-                            val colorMapping = getColorMapping(colorScheme)
-                            it.setColorResources(colorMapping)
-                        } else {
-                            it.resetColorResources()
+                update = { view ->
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            view.setOnLightBackground(onLightBackground)
                         }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            if (useThemeColors) {
+                                val colorMapping = getColorMapping(colorScheme)
+                                view.setColorResources(colorMapping)
+                            } else {
+                                view.resetColorResources()
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w("AppWidgetHost", "Failed to apply color resources: ${e.message}")
                     }
 
-                    it.updateAppWidgetSize(
-                        null,
-                        maxWidth.value.roundToInt(),
-                        maxHeight.value.roundToInt(),
-                        maxWidth.value.roundToInt(),
-                        maxHeight.value.roundToInt(),
-                    )
-                    it.setPadding(padding)
-                    // Workaround to force update of the widget view
-                    it.updateAppWidgetOptions(Bundle())
+                    view.setPadding(padding)
+
+                    val hostView = view as? LauncherAppWidgetHostView
+                    if (hostView == null || hostView.lastWidthDp != widthDp || hostView.lastHeightDp != heightDp) {
+                        hostView?.lastWidthDp = widthDp
+                        hostView?.lastHeightDp = heightDp
+                        applyWidgetDimensions(view, activityContext, widgetId, widthDp, heightDp)
+                    }
                 }
             )
         }
+    }
+}
+
+private fun applyWidgetDimensions(
+    view: AppWidgetHostView,
+    context: Context,
+    widgetId: Int,
+    widthDp: Int,
+    heightDp: Int
+) {
+    try {
+        val appWidgetManager = AppWidgetManager.getInstance(context)
+        val existingOptions = appWidgetManager.getAppWidgetOptions(widgetId) ?: Bundle()
+        val options = Bundle(existingOptions).apply {
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, widthDp)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, heightDp)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, widthDp)
+            putInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, heightDp)
+            putInt(
+                AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY,
+                AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN
+            )
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val sizes = ArrayList<SizeF>(2).apply {
+                add(SizeF(widthDp.toFloat(), heightDp.toFloat()))
+            }
+            options.putParcelableArrayList(AppWidgetManager.OPTION_APPWIDGET_SIZES, sizes)
+            view.updateAppWidgetSize(options, sizes)
+        } else {
+            @Suppress("DEPRECATION")
+            view.updateAppWidgetSize(options, widthDp, heightDp, widthDp, heightDp)
+        }
+        appWidgetManager.updateAppWidgetOptions(widgetId, options)
+    } catch (e: Exception) {
+        Log.e("AppWidgetHost", "Failed to update widget size for $widgetId", e)
     }
 }
 
@@ -91,7 +265,21 @@ private fun enableNestedScroll(view: View) {
             enableNestedScroll(child)
         }
     }
-    if (view is ListView || view is ScrollView) view.isNestedScrollingEnabled = true
+    if (view is ListView || view is ScrollView || view is GridView) {
+        view.isNestedScrollingEnabled = true
+    }
+}
+
+private fun hasScrollableChild(view: View): Boolean {
+    if (view is ListView || view is ScrollView || view is GridView || view is StackView || view is AdapterViewFlipper) {
+        return true
+    }
+    if (view is ViewGroup) {
+        for (child in view.iterator()) {
+            if (hasScrollableChild(child)) return true
+        }
+    }
+    return false
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -166,6 +354,7 @@ private fun getColorMapping(colorScheme: ColorScheme): SparseIntArray {
 
     return colorResources
 }
+
 @Composable
 fun Dp.toPixels(): Float {
     return value * LocalDensity.current.density

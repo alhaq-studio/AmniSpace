@@ -13,7 +13,7 @@ import androidx.core.app.NotificationManagerCompat
 
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        val title = intent?.getStringExtra("title") ?: "⏰ Alarm"
+        val title = intent?.getStringExtra("title") ?: "[Alarm] Reminder"
         val message = intent?.getStringExtra("message") ?: "Time to do stuff!"
         val channelId = "alarm_channel"
 

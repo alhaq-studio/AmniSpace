@@ -12,7 +12,7 @@ import com.alhaq.amniquest.app.theme.data.CustomColor
 class HackerTheme(): BaseTheme {
     override fun getRootColorScheme(): ColorScheme {
         return darkColorScheme(
-            primary = Color(0xFF00FF9F),       // Neon green 💻
+            primary = Color(0xFF00FF9F),       // Neon green
             onPrimary = Color.Black,           // High contrast text
 
             secondary = Color(0xFF00BFFF),     // Electric cyan
