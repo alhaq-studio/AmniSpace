@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -51,6 +52,15 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
 
+const val SIGLIP2_HF_BASE =
+    "https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/resolve/main"
+const val SIGLIP2_TOKENIZER_URL = "$SIGLIP2_HF_BASE/tokenizer.model"
+const val SIGLIP2_Q4_URL = "$SIGLIP2_HF_BASE/onnx/model_q4.onnx"
+const val SIGLIP2_INT8_URL = "$SIGLIP2_HF_BASE/onnx/model_int8.onnx"
+const val SIGLIP2_UINT8_URL = "$SIGLIP2_HF_BASE/onnx/model_uint8.onnx"
+const val SIGLIP2_FP16_URL = "$SIGLIP2_HF_BASE/onnx/model_fp16.onnx"
+const val SIGLIP2_Q4F16_URL = "$SIGLIP2_HF_BASE/onnx/model_q4f16.onnx"
+
 @kotlinx.serialization.Serializable
 data class DownloadableModel(
     val sizeMB: Int,
@@ -74,7 +84,7 @@ val DEFAULT_MODEL_CATALOG = listOf(
     ),
     DownloadableModel(
         id = "SIGLIP2_UINT8",
-        url = "https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/resolve/main/onnx/model_uint8.onnx",
+        url = SIGLIP2_UINT8_URL,
         sizeMB = 378,
         accuracy = "Standard",
         version = "1.0.0",
@@ -83,7 +93,7 @@ val DEFAULT_MODEL_CATALOG = listOf(
     ),
     DownloadableModel(
         id = "SIGLIP2_INT8",
-        url = "https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/resolve/main/onnx/model_int8.onnx",
+        url = SIGLIP2_INT8_URL,
         sizeMB = 378,
         accuracy = "Standard (INT8)",
         version = "1.0.0",
@@ -92,7 +102,7 @@ val DEFAULT_MODEL_CATALOG = listOf(
     ),
     DownloadableModel(
         id = "SIGLIP2_Q4F16",
-        url = "https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/resolve/main/onnx/model_q4f16.onnx",
+        url = SIGLIP2_Q4F16_URL,
         sizeMB = 497,
         accuracy = "Balanced (Q4F16)",
         version = "1.0.0",
@@ -101,7 +111,7 @@ val DEFAULT_MODEL_CATALOG = listOf(
     ),
     DownloadableModel(
         id = "SIGLIP2_FP16",
-        url = "https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/resolve/main/onnx/model_fp16.onnx",
+        url = SIGLIP2_FP16_URL,
         sizeMB = 751,
         accuracy = "Medium",
         version = "1.0.0",
@@ -110,7 +120,7 @@ val DEFAULT_MODEL_CATALOG = listOf(
     ),
     DownloadableModel(
         id = "SIGLIP2_FULL",
-        url = "https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/resolve/main/onnx/model.onnx",
+        url = "$SIGLIP2_HF_BASE/onnx/model.onnx",
         sizeMB = 1500,
         accuracy = "High",
         version = "1.0.0",
@@ -171,6 +181,47 @@ private fun ensureTokenizerDownloaded(context: Context) {
     }
 }
 
+fun ensureTokenizerQueued(context: Context) {
+    ensureTokenizerDownloaded(context)
+}
+
+fun sanitizeDownloadableModel(model: DownloadableModel): DownloadableModel {
+    if (model.isOnline || model.id.equals("online", ignoreCase = true)) {
+        return model.copy(isOnline = true)
+    }
+    val lowerId = model.id.lowercase()
+    val lowerUrl = model.url.lowercase()
+
+    val isUnquantizedFp32 = lowerUrl.endsWith("/model.onnx") ||
+        lowerUrl.contains("model.onnx?") ||
+        lowerId.contains("fp32") ||
+        model.sizeMB > 1000
+    val isNonSiglip2 = !lowerUrl.contains("siglip2-base-patch16-224-onnx")
+
+    if (!isUnquantizedFp32 && !isNonSiglip2) {
+        return model
+    }
+
+    return when {
+        lowerId.contains("small") || lowerId.contains("q4") || lowerId.contains("tiny") -> model.copy(
+            url = SIGLIP2_Q4_URL,
+            sizeMB = if (model.sizeMB in 50..350) model.sizeMB else 252
+        )
+        lowerId.contains("medium") || lowerId.contains("int8") -> model.copy(
+            url = SIGLIP2_INT8_URL,
+            sizeMB = if (model.sizeMB in 200..500) model.sizeMB else 380
+        )
+        lowerId.contains("fp16") -> model.copy(
+            url = SIGLIP2_FP16_URL,
+            sizeMB = if (model.sizeMB in 500..900) model.sizeMB else 751
+        )
+        else -> model.copy(
+            url = SIGLIP2_UINT8_URL,
+            sizeMB = if (model.sizeMB in 250..600) model.sizeMB else 378
+        )
+    }
+}
+
 @Composable
 fun ModelDownloadDialog(
     allowSkipping: Boolean = true,
@@ -200,7 +251,13 @@ fun ModelDownloadDialog(
 
     LaunchedEffect(Unit) {
         val existingModel = sp.getString("selected_one_shot_model", null)
-        if (existingModel == null && !BuildConfig.IS_FDROID) {
+        if (existingModel != null && (existingModel == "model" || existingModel == "fp32" || existingModel == "full_fp32")) {
+            val migrated = "SIGLIP2_FULL"
+            sp.edit(commit = true) {
+                putString("selected_one_shot_model", migrated)
+            }
+            currentModel = migrated
+        } else if (existingModel == null && !BuildConfig.IS_FDROID) {
             currentModel = "online"
             sp.edit(commit = true) {
                 putString("selected_one_shot_model", "online")
@@ -347,14 +404,18 @@ fun ModelDownloadDialog(
                     if (isModelDownloading) {
                         val downloadingModelId = sp.getString("downloading", "") ?: ""
                         Column(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 if (downloadingModelId.isNotEmpty()) {
-                                    "Please wait while $downloadingModelId downloads."
+                                    "Downloading $downloadingModelId model in background...\nCheck notifications for live progress."
                                 } else {
-                                    "Please wait while the model downloads."
+                                    "Downloading model in background...\nCheck notifications for live progress."
                                 },
                                 style = MaterialTheme.typography.bodyMedium,
                                 textAlign = TextAlign.Center,

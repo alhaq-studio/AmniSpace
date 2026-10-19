@@ -46,6 +46,13 @@ class QuestSyncWorker(
     }
 
     override suspend fun doWork(): Result {
+        val userId = userRepository.getUserId()
+        if (userRepository.userInfo.isAnonymous || userId.isBlank()) {
+            Log.d("QuestSyncWorker", "Skipping quest sync for anonymous user or empty id")
+            sendSyncBroadcast(SyncStatus.OVER)
+            return Result.success()
+        }
+
         setForegroundAsync(createForegroundInfo(context))
         val isFirstTime = inputData.getBoolean(EXTRA_IS_FIRST_TIME, false)
         val specificQuestId = inputData.getString(EXTRA_IS_PULL_SPECIFIC_QUEST)

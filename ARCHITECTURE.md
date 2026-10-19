@@ -55,6 +55,7 @@ AmniQuest uses a two-dimensional product flavor strategy (`distribution`) to acc
    - Supports Google AICore system service (`com.google.ai.edge.aicore`) for local Gemini Nano reasoning, with automatic fallback to calibrated SigLIP 2 zero-shot vision validation when AICore is unavailable.
    - Fully supports on-device SigLIP 2 ONNX vision classification models (UINT8, INT8, Q4F16, FP16, FULL) and native SentencePiece C++ JNI.
    - Supports user-configured Private Gemini API Key (`Gemini 2.5 Flash`) and Supabase Cloud Server validation.
+   - **Privacy & Crash Resilience**: Disables automatic Firebase initialization (`firebase_messaging_auto_init_enabled = false`) and deactivates background analytics (`firebase_analytics_collection_deactivated = true`) by default. Push token retrieval in `PlayPushProvider.kt` wraps calls in `Throwable` handling with `addOnFailureListener` and atomic single-invocation guards.
 
 2. **`fdroid` Flavor (`isFdroid = true`)**:
    - 100% Free and Open-Source Software (FOSS) compliant with zero proprietary GMS or Firebase SDKs.
@@ -95,6 +96,11 @@ AmniQuest relies on an **Offline-First Synchronization Architecture** with local
 ### Security & Encryption
 - **AES-256-CBC Backup Encryption**: Local database backups are exported using `PBKDF2` key derivation and `AES-256-CBC` encryption managed by `BackupManager.kt` and scheduled via `BackupWorker.kt`.
 - **Habit Privacy Mode**: Sensitive quest titles can be masked and locked behind Android Biometric Authentication (Fingerprint/Face/PIN) using `androidx.biometric`.
+
+### Cloud Synchronization Guards & Anonymous User Resilience
+Background synchronization workers (`ProfileSyncService`, `QuestSyncWorker`, `StatsSyncWorker`) protect offline-first users:
+- Before initiating foreground services or dispatching remote network operations, workers check `userRepository.userInfo.isAnonymous || userId.isBlank()`.
+- If true, workers immediately broadcast `SyncStatus.OVER` and return `Result.success()`. This prevents spurious foreground notification flashing, unnecessary network wakeups, and unhandled retry loops for local-only anonymous users.
 
 ---
 
@@ -220,18 +226,29 @@ Different ONNX quantized architectures produce varying output logit tensor types
 - **`FLOAT16` & `BFLOAT16`**: Output `shortBuffer` instances are converted to 32-bit floats using `Fp16Conversions.convertFp16BufferToFloatBuffer(shortBuffer)`.
 - **`DOUBLE`**: Extracted via `doubleBuffer` and cast down to 32-bit floats for cosine similarity calculation.
 
-### Native SentencePiece C++ JNI & Gemma Tokenization Specs
+### Native SentencePiece C++ JNI & Pure-Kotlin Fallback
 
-The native tokenizer module (`:ai`) provides text tokenization for zero-shot prompts:
+The tokenizer pipeline (`:ai`) provides text tokenization for zero-shot prompts:
 - **Thread Safety**: Model loading and tokenization are protected by `std::mutex` in `sentencepiece_jni.cpp` to prevent race conditions during concurrent worker evaluations.
 - **Model Path Caching**: Cached global model path (`g_loaded_model_path`) prevents redundant disk reloads when the same model file is reused.
-- **Gemma Tokenization Specs**: Configured with `PAD=0L`, `EOS=1L`, `maxLength=64`, and lowercase normalization in `OneShotTools.kt`.
-- **16 KB Memory Page Alignment**: Compiled with `-Wl,-z,max-page-size=16384` for strict Android 15+ 16 KB page memory alignment compliance.
+- **Pure-Kotlin Binary Protobuf Fallback**: If the native JNI shared library (`libsentencepiece_jni.so`) is missing or fails to load, `SentencePieceProcessor` automatically falls back to `KotlinSentencePieceModel`, an on-device binary protobuf parser with Unigram Viterbi DP segmentation.
+- **Gemma Tokenization Specs**: Configured with `PAD=0L`, `EOS=1L`, `maxLength=64`, and lowercase normalization in `OneShotTools.kt`. Appends control token `EOS` programmatically rather than string concatenation.
 
-### Hardware Acceleration & Runtime Fault Recovery
+### Calibrated Zero-Shot Verification & Negative Baseline Gating
 
-- **NNAPI Acceleration**: Sessions initialize with NNAPI hardware acceleration enabled by default.
-- **Automatic CPU Recovery**: If NNAPI execution fails during `session.run(inputs)` due to driver incompatibility or unsupported tensor shapes, the session automatically catches the runtime exception, recreates a CPU-only `OrtSession`, and completes verification without user disruption.
+To eliminate false positives from camera noise, blank surfaces, or dark environments:
+- **Calibrated Thresholds**: Positives must exceed `SIGLIP_SIGMOID_THRESHOLD = 0.05f` and `SIGLIP_COSINE_THRESHOLD = 0.16f`.
+- **Negative Baseline Prompts**: Images are co-evaluated against negative baseline prompts:
+  - `"this is a blurry, dark, or irrelevant photo."`
+  - `"this is a photo of a blank wall, floor, or empty background."`
+- **Margin Gating**: Positive prompt similarity must exceed the highest negative baseline score by a strict margin (`NEGATIVE_MARGIN_LOGIT = 0.25f` or `NEGATIVE_MARGIN_COSINE = 0.015f`).
+- **EXIF Orientation Correction**: `decodeBitmapWithExif()` parses JPEG EXIF metadata to ensure images captured in portrait/landscape are properly oriented before inference.
+
+### Hardware Acceleration, Session Caching & Runtime Fault Recovery
+
+- **Thread-Safe Session Caching**: `AiSnapQuestViewVM` maintains an active `OrtSession` guarded by a coroutine `Mutex` (`sessionLock`), reusing models across verification runs unless the selected model file changes (`loadedModelFilePath == modelFile.canonicalPath`).
+- **Emergency Tokenizer Provisioning**: If tokenizer assets are missing during evaluation, `ensureTokenizerReady()` triggers a synchronous emergency fallback download to recover inference capabilities.
+- **NNAPI Acceleration & Automatic CPU Recovery**: Sessions initialize with NNAPI hardware acceleration enabled by default. If NNAPI execution fails during `session.run(inputs)` due to driver incompatibility or unsupported tensor shapes, the session automatically catches the runtime exception, recreates a CPU-only `OrtSession`, and completes verification without user disruption.
 - **Memory & Bitmap Lifecycle**:
   - `Bitmap.Config.HARDWARE` instances are safely converted to software bitmaps before pixel extraction.
   - Bulk pixel extraction via `getPixels()` replaces slow pixel-by-pixel reads.
@@ -242,9 +259,11 @@ The native tokenizer module (`:ai`) provides text tokenization for zero-shot pro
 ### Resilient Model Download Engine (`FileDownloadWorker`)
 
 On-device AI models (~378 MB to ~1.5 GB) and tokenizer assets (~4.1 MB) are downloaded via Android `WorkManager`:
-- **HTTP Range Resume**: Supports HTTP 206 Partial Content resumes and HTTP 200 clean restarts when network interrupts occur.
-- **Notification Synchronization**: Dedicated foreground notification IDs prevent notification channel collisions.
+- **HTTP Redirect & Range Resume**: `OkHttpClient` supports explicit 302/307 redirects (`followRedirects(true).followSslRedirects(true)`). Supports HTTP 206 Partial Content resumes and HTTP 200 clean restarts when network interrupts occur.
+- **Concurrency & State Guards**: SharedPreferences download state validation (`currentDownloading == null || currentDownloading == modelId`) prevents concurrent download workers from prematurely wiping flags.
+- **Race-Safe Notifications**: Dedicated foreground notification IDs prevent collisions, and `createForegroundInfo()` is lazily initialized on progress updates.
 - **Shared Tokenizer Queue**: Tokenizer downloads use a unique work name (`tokenizer.model`) with `ExistingWorkPolicy.KEEP` to prevent redundant downloads.
+- **Model Sanitization**: `sanitizeDownloadableModel()` redirects raw 1.5 GB FP32 requests to stable quantized endpoints (`SIGLIP2_UINT8`), preventing low-memory devices from crashing.
 - **WorkManager Expedited Quota Fallback**: Uses `RUN_AS_NON_EXPEDITED_WORK_REQUEST` to prevent silent job drops when system expedited quotas are exhausted.
 - **State Reconciliation & Cancellation**: `ModelDownloadDialog.kt` reconciles stale SharedPreferences flags against active WorkManager states and provides an explicit "Cancel Download" option.
 
@@ -286,6 +305,7 @@ On-device AI models (~378 MB to ~1.5 GB) and tokenizer assets (~4.1 MB) are down
   - Bonsai
 - **Interactive Canvas Animations**: Custom Compose canvas shaders and animations including Matrix digital rain (`MatrixAnimation.kt`), Sakura blossom particle physics (`FocusSakura.kt`), and procedurally growing Bonsai trees (`FocusingBonsaiTree.kt`).
 - **Home Screen Launcher**: Minimalist launcher mode (`HomeScreen.kt`, `AppList.kt`) designed to reduce phone scrolling impulses.
+- **Theme Compatibility**: `Theme.Launcher` inherits from `Theme.AppCompat.DayNight.NoActionBar`, ensuring stable dynamic day/night theme inflation without window decor flickering or theme inheritance crashes.
 
 ---
 

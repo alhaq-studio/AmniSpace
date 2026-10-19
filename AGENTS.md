@@ -6,11 +6,11 @@ Unified baseline instructions for AmniQuest across Google Antigravity, Anthropic
 
 ## 1. Module Boundaries
 
-- **`:app`**: Presentation layer (Jetpack Compose, Material 3, Edge-to-Edge), unified `AiSnapQuestViewVM`, Room databases (`QuestDatabase`, `StatsDatabase`, `ReminderDatabase`, `WidgetDatabase`), foreground `AppBlockerService`, WorkManager background workers (`FileDownloadWorker`, `BackupWorker`), encrypted `BackupManager`, and `SupabaseManager`.
+- **`:app`**: Presentation layer (Jetpack Compose, Material 3, Edge-to-Edge), unified `AiSnapQuestViewVM` (calibrated SigLIP 2 zero-shot similarity, negative margin gating, thread-safe session caching), Room databases (`QuestDatabase`, `StatsDatabase`, `ReminderDatabase`, `WidgetDatabase`), foreground `AppBlockerService`, WorkManager background workers (`FileDownloadWorker` with redirect and concurrency safety, `BackupWorker`, `QuestSyncWorker`, `StatsSyncWorker` with anonymous guards), encrypted `BackupManager`, and `SupabaseManager`.
 - **`:core`**: Pure domain and platform utilities (`ScreenUsageStatsHelper`, `LicenseValidator` using ECDSA NIST P-256, hardware and accessibility managers, `TimeTools`, `ErrorLogger`).
 - **`:data`**: Canonical domain data models, Kotlinx Serialization contracts, and `AiEvaluationStep` enums.
 - **`:backend`**: Remote task validation endpoints, multimodal `GeminiValidator` API client.
-- **`:ai`**: Native SentencePiece C++ JNI compiled via CMake and NDK with 16 KB page memory alignment, mutex synchronization, model caching, and SigLIP 2 preprocessing (`OneShotTools.kt`).
+- **`:ai`**: Native SentencePiece C++ JNI compiled via CMake and NDK with 16 KB page memory alignment, pure-Kotlin protobuf and Unigram Viterbi fallback (`KotlinSentencePieceModel`), mutex synchronization, model caching, and SigLIP 2 preprocessing (`OneShotTools.kt`).
 
 ---
 

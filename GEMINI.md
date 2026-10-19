@@ -29,6 +29,8 @@ You are the Amni Ecosystem Master Agent working on **AmniQuest** (`d:\PROJECTS\A
 6. **SentencePiece Vocab Specs**: Use Gemma token IDs (`PAD = 0L`, `EOS = 1L`, `maxLength = 64`) and do not concatenate literal `" </s>"` strings into raw input queries.
 7. **WorkManager Resilient Downloads**: Handle HTTP 200 vs 206 responses to prevent Range corruption, and use `RUN_AS_NON_EXPEDITED_WORK_REQUEST`.
 8. **Runtime Fault Recovery**: If NNAPI execution fails during `session.run(inputs)`, catch the exception, recreate a CPU-only `OrtSession`, and complete verification seamlessly.
+9. **Pure-Kotlin Tokenizer Fallback**: If SentencePiece JNI native load fails, fallback to pure-Kotlin binary protobuf parser + Unigram Viterbi DP segmentation (`KotlinSentencePieceModel`).
+10. **Calibrated SigLIP 2 Gating**: Require positive similarity to exceed calibrated thresholds (`sigmoid >= 0.05f`, `cosine >= 0.16f`) and negative baseline margin gating (`margin >= 0.25f` logit / `0.015f` cosine) against blank/blurry/dark distractors.
 
 ---
 

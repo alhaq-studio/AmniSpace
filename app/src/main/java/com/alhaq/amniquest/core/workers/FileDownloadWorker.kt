@@ -144,6 +144,8 @@ class FileDownloadWorker(
         .connectTimeout(2, TimeUnit.MINUTES)
         .readTimeout(5, TimeUnit.MINUTES)
         .writeTimeout(5, TimeUnit.MINUTES)
+        .followRedirects(true)
+        .followSslRedirects(true)
         .build()
 
     // Single NotificationManager and Builder instance for efficiency
@@ -182,11 +184,11 @@ class FileDownloadWorker(
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException || e is java.util.concurrent.CancellationException) {
                 Log.i(TAG, "Download cancelled for $fileName.")
-                updateSharedPrefsOnFailure(isOneShotModel)
+                updateSharedPrefsOnFailure(modelId)
                 throw e
             }
             Log.e(TAG, "Download failed permanently for $fileName.", e)
-            updateSharedPrefsOnFailure(isOneShotModel)
+            updateSharedPrefsOnFailure(modelId)
             showErrorNotification(fileName, notificationId, e.message ?: "An unknown error occurred")
             Result.failure()
         }
@@ -340,13 +342,17 @@ class FileDownloadWorker(
         version: String,
         isOneShotModel: Boolean
     ) {
-        applicationContext.getSharedPreferences("models", Context.MODE_PRIVATE).edit(commit = true) {
+        val sp = applicationContext.getSharedPreferences("models", Context.MODE_PRIVATE)
+        sp.edit(commit = true) {
             if (isOneShotModel) {
                 putString("selected_one_shot_model", modelId)
-                remove("downloading")
             }
             putBoolean("is_downloaded_$modelId", true)
             putString("version_$modelId", version)
+            val currentDownloading = sp.getString("downloading", null)
+            if (currentDownloading == null || currentDownloading == modelId) {
+                remove("downloading")
+            }
         }
         if (isOneShotModel) {
             applicationContext.getSharedPreferences("private_settings", Context.MODE_PRIVATE).edit()
@@ -355,9 +361,11 @@ class FileDownloadWorker(
         }
     }
 
-    private fun updateSharedPrefsOnFailure(isOneShotModel: Boolean) {
-        if (isOneShotModel) {
-            applicationContext.getSharedPreferences("models", Context.MODE_PRIVATE).edit(commit = true) {
+    private fun updateSharedPrefsOnFailure(modelId: String) {
+        val sp = applicationContext.getSharedPreferences("models", Context.MODE_PRIVATE)
+        val currentDownloading = sp.getString("downloading", null)
+        if (currentDownloading == null || currentDownloading == modelId) {
+            sp.edit(commit = true) {
                 remove("downloading")
             }
         }
@@ -376,7 +384,9 @@ class FileDownloadWorker(
     }
 
     private fun updateProgressNotification(fileName: String, notificationId: Int, progress: Int) {
-        if (!::notificationBuilder.isInitialized) return
+        if (!::notificationBuilder.isInitialized) {
+            createForegroundInfo(fileName, notificationId)
+        }
         try {
             notificationBuilder
                 .setContentTitle("Downloading $fileName")

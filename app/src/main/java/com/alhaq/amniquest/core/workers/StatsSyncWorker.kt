@@ -68,6 +68,13 @@ class StatsSyncWorker(
     }
     @OptIn(ExperimentalTime::class)
     override suspend fun doWork(): Result {
+        val userId = userRepository.getUserId()
+        if (userRepository.userInfo.isAnonymous || userId.isBlank()) {
+            Log.d("StatsSyncWorker", "Skipping stats sync for anonymous user or empty id")
+            sendSyncBroadcast(SyncStatus.OVER)
+            return Result.success()
+        }
+
         setForegroundAsync(createForegroundInfo(context))
         val isFirstTime = inputData.getBoolean(EXTRA_IS_FIRST_TIME, false)
         val isPullForToday = inputData.getBoolean(EXTRA_IS_PULL_FOR_TODAY, false)
@@ -75,7 +82,6 @@ class StatsSyncWorker(
         sendSyncBroadcast(SyncStatus.ONGOING)
 
         try {
-            val userId = userRepository.getUserId()
             Log.d("StatsSyncWorker", "Starting stats sync for $userId, firstTime: $isFirstTime")
 
             when {

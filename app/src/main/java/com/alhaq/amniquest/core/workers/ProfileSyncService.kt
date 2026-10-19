@@ -24,28 +24,40 @@ class ProfileSyncWorker(val appContext: Context, params: WorkerParameters) : Cor
     params
 ) {
     override suspend fun doWork(): Result {
-        setForegroundAsync(createForegroundInfo(appContext))
         val isFirstTimeSync = inputData.getBoolean(EXTRA_IS_FIRST_TIME, false)
 
+        val entryPoint = EntryPointAccessors.fromApplication(applicationContext, UserRepositoryEntryPoint::class.java)
+        val userRepository = entryPoint.userRepository()
+        val userId = userRepository.getUserId()
+
+        if (userRepository.userInfo.isAnonymous || userId.isBlank()) {
+            Log.d("ProfileSyncWorker", "Skipping remote sync for anonymous user or empty id")
+            sendSyncBroadcast(SyncStatus.OVER)
+            return Result.success()
+        }
+
+        setForegroundAsync(createForegroundInfo(appContext))
+
         return try {
-            performSync(isFirstTimeSync)
+            performSync(isFirstTimeSync, userRepository, userId)
             Log.d("ProfileSyncWorker", "Sync completed successfully")
             Result.success()
         } catch (e: Exception) {
             Log.e("ProfileSyncWorker", "Sync failed", e)
-            Result.retry()
+            sendSyncBroadcast(SyncStatus.OVER)
+            Result.failure()
         }
     }
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         return createForegroundInfo(appContext)
     }
-    private suspend fun performSync(isFirstTimeSync: Boolean) {
 
-        val entryPoint = EntryPointAccessors.fromApplication(applicationContext, UserRepositoryEntryPoint::class.java)
-        val userRepository = entryPoint.userRepository()
-
-        val userId = userRepository.getUserId()
+    private suspend fun performSync(
+        isFirstTimeSync: Boolean,
+        userRepository: com.alhaq.amniquest.backed.repositories.UserRepository,
+        userId: String
+    ) {
         Log.d("ProfileSyncWorker", "Starting sync for $userId")
 
         sendSyncBroadcast(SyncStatus.ONGOING)

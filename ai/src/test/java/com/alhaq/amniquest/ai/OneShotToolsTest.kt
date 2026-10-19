@@ -107,4 +107,93 @@ class OneShotToolsTest {
         val result = padTokenIds(input, maxLength = 4, padTokenId = 0L, eosTokenId = 1L)
         assertArrayEquals(longArrayOf(1L, 0L, 0L, 0L), result)
     }
+
+    @Test
+    fun formatSiglipPrompt_variousInputs_formatsCorrectly() {
+        assertEquals("this is a photo.", OneShotTools.formatSiglipPrompt(""))
+        assertEquals("this is a photo.", OneShotTools.formatSiglipPrompt("   "))
+        assertEquals("this is a photo of a dog.", OneShotTools.formatSiglipPrompt("a dog"))
+        assertEquals("this is a photo of a red apple.", OneShotTools.formatSiglipPrompt("  a red apple.  "))
+        assertEquals("this is a photo of a clean desk.", OneShotTools.formatSiglipPrompt("this is a photo of a clean desk"))
+        assertEquals("a photo of mountains.", OneShotTools.formatSiglipPrompt("a photo of mountains"))
+    }
+
+    @Test
+    fun sigmoid_calibratedValues_returnsExpectedProbabilities() {
+        assertEquals(0.5f, OneShotTools.sigmoid(0.0f), 1e-5f)
+        org.junit.Assert.assertTrue(OneShotTools.sigmoid(2.0f) > 0.85f)
+        org.junit.Assert.assertTrue(OneShotTools.sigmoid(-2.0f) < 0.15f)
+    }
+
+    @Test
+    fun l2Normalize_computesUnitLengthVector() {
+        val vector = floatArrayOf(3.0f, 4.0f)
+        val normalized = OneShotTools.l2Normalize(vector)
+        assertEquals(2, normalized.size)
+        assertEquals(0.6f, normalized[0], 1e-5f)
+        assertEquals(0.8f, normalized[1], 1e-5f)
+
+        var normSq = 0.0
+        for (v in normalized) normSq += (v * v)
+        assertEquals(1.0, normSq, 1e-5)
+    }
+
+    @Test
+    fun cosineSimilarity_unitAndOrthogonalVectors_computesCorrectSimilarity() {
+        val v1 = floatArrayOf(1.0f, 0.0f, 0.0f)
+        val v2 = floatArrayOf(1.0f, 0.0f, 0.0f)
+        val v3 = floatArrayOf(0.0f, 1.0f, 0.0f)
+        val v4 = floatArrayOf(-1.0f, 0.0f, 0.0f)
+
+        assertEquals(1.0f, OneShotTools.cosineSimilarity(v1, v2), 1e-5f)
+        assertEquals(0.0f, OneShotTools.cosineSimilarity(v1, v3), 1e-5f)
+        assertEquals(-1.0f, OneShotTools.cosineSimilarity(v1, v4), 1e-5f)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun cosineSimilarity_mismatchedDimensions_throwsIllegalArgumentException() {
+        OneShotTools.cosineSimilarity(floatArrayOf(1f, 2f), floatArrayOf(1f))
+    }
+
+    @Test
+    fun kotlinSentencePieceModel_fromEmptyBytes_returnsNull() {
+        val model = KotlinSentencePieceModel.fromBytes(ByteArray(0))
+        org.junit.Assert.assertNull(model)
+    }
+
+    @Test
+    fun kotlinSentencePieceModel_syntheticProtobuf_encodesTokensCorrectly() {
+        // Construct a minimal valid ModelProto binary protobuf:
+        // field 1 (SentencePiece): piece="cat", score=-1.0f, type=NORMAL (1)
+        val pieceBytes = "cat".toByteArray(Charsets.UTF_8)
+        val piecePayload = java.io.ByteArrayOutputStream().apply {
+            // field 1 (string piece): tag = (1 shl 3) or 2 = 10
+            write(10)
+            write(pieceBytes.size)
+            write(pieceBytes)
+            // field 2 (float score): tag = (2 shl 3) or 5 = 21
+            write(21)
+            val bits = java.lang.Float.floatToIntBits(-1.0f)
+            write(bits and 0xFF)
+            write((bits ushr 8) and 0xFF)
+            write((bits ushr 16) and 0xFF)
+            write((bits ushr 24) and 0xFF)
+            // field 3 (type): tag = (3 shl 3) or 0 = 24
+            write(24)
+            write(1) // NORMAL
+        }.toByteArray()
+
+        val fullProto = java.io.ByteArrayOutputStream().apply {
+            // Outer field 1: tag = (1 shl 3) or 2 = 10
+            write(10)
+            write(piecePayload.size)
+            write(piecePayload)
+        }.toByteArray()
+
+        val model = KotlinSentencePieceModel.fromBytes(fullProto)
+        org.junit.Assert.assertNotNull(model)
+        val tokens = model!!.encode("cat")
+        assertEquals(1, tokens.size)
+        assertEquals(0, tokens[0]) // first piece has tokenId 0
+    }
 }
