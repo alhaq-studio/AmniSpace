@@ -222,4 +222,185 @@ class CommitmentEconomyAndUserRepositoryTest {
         assertEquals(0, res3.totalCoinCost)
         assertTrue(res3.canAfford)
     }
+
+    @Test
+    fun resolveEffectivePrice_clampsDistractionPricesWhenOutOfBounds() {
+        // Distraction Adder: clamped to [0, 10]
+        assertEquals(
+            0,
+            UserRepository.resolveEffectivePrice(
+                item = InventoryItem.DISTRACTION_ADDER,
+                adderPrice = -5,
+                removerPrice = 50
+            )
+        )
+        assertEquals(
+            10,
+            UserRepository.resolveEffectivePrice(
+                item = InventoryItem.DISTRACTION_ADDER,
+                adderPrice = 25,
+                removerPrice = 50
+            )
+        )
+
+        // Distraction Remover: clamped to [20, 500]
+        assertEquals(
+            20,
+            UserRepository.resolveEffectivePrice(
+                item = InventoryItem.DISTRACTION_REMOVER,
+                adderPrice = 0,
+                removerPrice = 5
+            )
+        )
+        assertEquals(
+            500,
+            UserRepository.resolveEffectivePrice(
+                item = InventoryItem.DISTRACTION_REMOVER,
+                adderPrice = 0,
+                removerPrice = 800
+            )
+        )
+    }
+
+    @Test
+    fun commitmentAntiCheatPolicy_canAffordPriceReduction_boundaryExactCoinCases() {
+        val removerPrice = 50
+
+        // Shortfall by exactly 1 coin
+        assertFalse(
+            CommitmentAntiCheatPolicy.canAffordPriceReduction(
+                userCoins = removerPrice - 1,
+                removerOwned = 0,
+                currentRemoverPrice = removerPrice
+            )
+        )
+
+        // Exact match
+        assertTrue(
+            CommitmentAntiCheatPolicy.canAffordPriceReduction(
+                userCoins = removerPrice,
+                removerOwned = 0,
+                currentRemoverPrice = removerPrice
+            )
+        )
+
+        // Surplus coins
+        assertTrue(
+            CommitmentAntiCheatPolicy.canAffordPriceReduction(
+                userCoins = removerPrice + 1,
+                removerOwned = 0,
+                currentRemoverPrice = removerPrice
+            )
+        )
+
+        // Zero coins but 1 tool owned
+        assertTrue(
+            CommitmentAntiCheatPolicy.canAffordPriceReduction(
+                userCoins = 0,
+                removerOwned = 1,
+                currentRemoverPrice = removerPrice
+            )
+        )
+
+        // Zero coins and 0 tools owned
+        assertFalse(
+            CommitmentAntiCheatPolicy.canAffordPriceReduction(
+                userCoins = 0,
+                removerOwned = 0,
+                currentRemoverPrice = removerPrice
+            )
+        )
+    }
+
+    @Test
+    fun commitmentAntiCheatPolicy_isLoweringPrice_detectsMixedChanges() {
+        // Lowering remover while raising adder triggers anti-cheat protection
+        assertTrue(
+            CommitmentAntiCheatPolicy.isLoweringPrice(
+                currentAdder = 0,
+                currentRemover = 100,
+                newAdder = 10,
+                newRemover = 50
+            )
+        )
+
+        // Lowering adder while raising remover triggers anti-cheat protection
+        assertTrue(
+            CommitmentAntiCheatPolicy.isLoweringPrice(
+                currentAdder = 5,
+                currentRemover = 50,
+                newAdder = 0,
+                newRemover = 200
+            )
+        )
+
+        // No change on either
+        assertFalse(
+            CommitmentAntiCheatPolicy.isLoweringPrice(
+                currentAdder = 5,
+                currentRemover = 100,
+                newAdder = 5,
+                newRemover = 100
+            )
+        )
+
+        // Increasing both
+        assertFalse(
+            CommitmentAntiCheatPolicy.isLoweringPrice(
+                currentAdder = 0,
+                currentRemover = 50,
+                newAdder = 5,
+                newRemover = 100
+            )
+        )
+    }
+
+    @Test
+    fun commitmentAntiCheatPolicy_calculateBulkRequirements_sanitizesNegativeAndOutOfBoundsInputs() {
+        // Negative counts and owned quantities sanitized to 0
+        val res = CommitmentAntiCheatPolicy.calculateBulkRequirements(
+            adderPrice = -10, // clamped to 0
+            removerPrice = 5,  // clamped to 20
+            adderOwned = -3,  // sanitized to 0
+            removerOwned = -2, // sanitized to 0
+            addedCount = -5,   // sanitized to 0
+            removedCount = -1, // sanitized to 0
+            userCoins = -100   // sanitized to 0
+        )
+        assertEquals(0, res.addersFromInv)
+        assertEquals(0, res.addersToBuy)
+        assertEquals(0, res.removersFromInv)
+        assertEquals(0, res.removersToBuy)
+        assertEquals(0, res.totalCoinCost)
+        assertTrue(res.canAfford)
+    }
+
+    @Test
+    fun commitmentAntiCheatPolicy_calculateBulkRequirements_boundaryExactCoinsAndShortfall() {
+        // adderPrice = 5, removerPrice = 40.
+        // Needs 2 adders to buy (10 coins) and 1 remover to buy (40 coins) = total 50 coins.
+        val exactMatch = CommitmentAntiCheatPolicy.calculateBulkRequirements(
+            adderPrice = 5,
+            removerPrice = 40,
+            adderOwned = 0,
+            removerOwned = 0,
+            addedCount = 2,
+            removedCount = 1,
+            userCoins = 50
+        )
+        assertEquals(50, exactMatch.totalCoinCost)
+        assertTrue(exactMatch.canAfford)
+
+        val shortfallByOne = CommitmentAntiCheatPolicy.calculateBulkRequirements(
+            adderPrice = 5,
+            removerPrice = 40,
+            adderOwned = 0,
+            removerOwned = 0,
+            addedCount = 2,
+            removedCount = 1,
+            userCoins = 49
+        )
+        assertEquals(50, shortfallByOne.totalCoinCost)
+        assertFalse(shortfallByOne.canAfford)
+    }
 }

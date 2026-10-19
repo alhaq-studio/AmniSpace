@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -26,6 +27,7 @@ fun BlockedAppsView(viewModel: OnboarderViewModel) {
     val context = LocalContext.current
     val adderPrice by viewModel.distractionAdderPrice.collectAsState()
     val removerPrice by viewModel.distractionRemoverPrice.collectAsState()
+    val distractingApps = remember { viewModel.getDistractingApps().toList() }
 
     Column(
         modifier = Modifier
@@ -65,7 +67,7 @@ fun BlockedAppsView(viewModel: OnboarderViewModel) {
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }
-            items(viewModel.getDistractingApps().toList()) {
+            items(items = distractingApps, key = { it }) {
                 val appName = try {
                     pm.getApplicationInfo(it, 0).loadLabel(pm).toString()
                 } catch (e: Exception) {

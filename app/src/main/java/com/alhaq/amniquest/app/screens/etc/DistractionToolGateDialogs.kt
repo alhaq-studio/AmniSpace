@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -96,17 +97,25 @@ object CommitmentAntiCheatPolicy {
         removedCount: Int,
         userCoins: Int
     ): BulkCostResult {
-        val addersNeeded = if (adderPrice > 0) addedCount else 0
-        val removersNeeded = removedCount
+        val safeAdderPrice = UserRepository.coerceAdderPrice(adderPrice)
+        val safeRemoverPrice = UserRepository.coerceRemoverPrice(removerPrice)
+        val safeAdderOwned = adderOwned.coerceAtLeast(0)
+        val safeRemoverOwned = removerOwned.coerceAtLeast(0)
+        val safeAddedCount = addedCount.coerceAtLeast(0)
+        val safeRemovedCount = removedCount.coerceAtLeast(0)
+        val safeUserCoins = userCoins.coerceAtLeast(0)
 
-        val addersFromInv = minOf(adderOwned, addersNeeded)
+        val addersNeeded = if (safeAdderPrice > 0) safeAddedCount else 0
+        val removersNeeded = safeRemovedCount
+
+        val addersFromInv = minOf(safeAdderOwned, addersNeeded)
         val addersToBuy = (addersNeeded - addersFromInv).coerceAtLeast(0)
 
-        val removersFromInv = minOf(removerOwned, removersNeeded)
+        val removersFromInv = minOf(safeRemoverOwned, removersNeeded)
         val removersToBuy = (removersNeeded - removersFromInv).coerceAtLeast(0)
 
-        val totalCoinCost = (addersToBuy * adderPrice) + (removersToBuy * removerPrice)
-        val canAfford = userCoins >= totalCoinCost
+        val totalCoinCost = (addersToBuy * safeAdderPrice) + (removersToBuy * safeRemoverPrice)
+        val canAfford = safeUserCoins >= totalCoinCost
 
         return BulkCostResult(
             addersFromInv = addersFromInv,
@@ -131,7 +140,9 @@ fun DistractionToolGateDialog(
     onDismiss: () -> Unit,
     onActionApproved: (feedbackMessage: String) -> Unit
 ) {
-    Dialog(onDismissRequest = onDismiss) {
+    var isProcessing by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = { if (!isProcessing) onDismiss() }) {
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(
@@ -312,12 +323,15 @@ fun DistractionToolGateDialog(
                             if (canUseInventory) {
                                 Button(
                                     onClick = {
+                                        if (isProcessing) return@Button
+                                        isProcessing = true
                                         userRepository.deductFromInventory(item, 1)
                                         val verb = if (action.isAdding) "Added" else "Removed"
                                         onActionApproved(
                                             "$verb ${action.appLabel} (Used 1 ${item.simpleName} from Inventory)"
                                         )
                                     },
+                                    enabled = !isProcessing,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .testTag("use_inventory_tool_button")
@@ -332,6 +346,8 @@ fun DistractionToolGateDialog(
                             if (canBuyWithCoins) {
                                 Button(
                                     onClick = {
+                                        if (isProcessing) return@Button
+                                        isProcessing = true
                                         if (toolPrice > 0) {
                                             userRepository.useCoins(toolPrice)
                                         }
@@ -340,6 +356,7 @@ fun DistractionToolGateDialog(
                                             "$verb ${action.appLabel} (-$toolPrice Coins)"
                                         )
                                     },
+                                    enabled = !isProcessing,
                                     colors = if (action.isAdding) {
                                         ButtonDefaults.buttonColors()
                                     } else {
@@ -364,7 +381,8 @@ fun DistractionToolGateDialog(
                             }
 
                             OutlinedButton(
-                                onClick = onDismiss,
+                                onClick = { if (!isProcessing) onDismiss() },
+                                enabled = !isProcessing,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .testTag("cancel_tool_gate_button")
@@ -475,13 +493,16 @@ fun DistractionToolGateDialog(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             OutlinedButton(
-                                onClick = onDismiss,
+                                onClick = { if (!isProcessing) onDismiss() },
+                                enabled = !isProcessing,
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text("Cancel")
                             }
                             Button(
                                 onClick = {
+                                    if (isProcessing) return@Button
+                                    isProcessing = true
                                     if (addersFromInv > 0) {
                                         userRepository.deductFromInventory(
                                             InventoryItem.DISTRACTION_ADDER,
@@ -499,7 +520,7 @@ fun DistractionToolGateDialog(
                                     }
                                     onActionApproved("Blocklist updated (${action.targetBlockedSet.size} apps blocked)")
                                 },
-                                enabled = canAfford,
+                                enabled = canAfford && !isProcessing,
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text("Confirm")
@@ -522,6 +543,7 @@ fun DistractionToolPricingSettingsDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    var isProcessing by remember { mutableStateOf(false) }
     var draftAdderPrice by remember(currentAdderPrice) { mutableIntStateOf(currentAdderPrice) }
     var draftRemoverPrice by remember(currentRemoverPrice) { mutableIntStateOf(currentRemoverPrice) }
 
@@ -535,7 +557,7 @@ fun DistractionToolPricingSettingsDialog(
     val canPayReductionWithTool = removerOwned > 0
     val canPayReductionWithCoins = userCoins >= currentRemoverPrice
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(onDismissRequest = { if (!isProcessing) onDismiss() }) {
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(
@@ -591,13 +613,16 @@ fun DistractionToolPricingSettingsDialog(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         OutlinedButton(
-                            onClick = onDismiss,
+                            onClick = { if (!isProcessing) onDismiss() },
+                            enabled = !isProcessing,
                             modifier = Modifier.weight(1f)
                         ) {
                             Text("Cancel")
                         }
                         Button(
                             onClick = {
+                                if (isProcessing) return@Button
+                                isProcessing = true
                                 userRepository.updateDistractionToolPrices(
                                     draftAdderPrice,
                                     draftRemoverPrice
@@ -609,7 +634,7 @@ fun DistractionToolPricingSettingsDialog(
                                 ).show()
                                 onDismiss()
                             },
-                            enabled = hasChanges,
+                            enabled = hasChanges && !isProcessing,
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("save_tool_prices_free_button")
@@ -622,9 +647,27 @@ fun DistractionToolPricingSettingsDialog(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        if (!canPayReductionWithTool && !canPayReductionWithCoins) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.errorContainer,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "Insufficient funds: You need ${currentRemoverPrice - userCoins} more coins (or 1 Distraction Remover in Inventory) to lower your commitment prices.",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                            }
+                        }
+
                         if (canPayReductionWithTool) {
                             Button(
                                 onClick = {
+                                    if (isProcessing) return@Button
+                                    isProcessing = true
                                     userRepository.deductFromInventory(
                                         InventoryItem.DISTRACTION_REMOVER,
                                         1
@@ -640,39 +683,48 @@ fun DistractionToolPricingSettingsDialog(
                                     ).show()
                                     onDismiss()
                                 },
-                                modifier = Modifier.fillMaxWidth()
+                                enabled = !isProcessing,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("use_tool_to_lower_price_button")
                             ) {
                                 Text("Use 1 Remover Tool & Lower Price")
                             }
                         }
 
-                        if (canPayReductionWithCoins) {
-                            Button(
-                                onClick = {
-                                    userRepository.useCoins(currentRemoverPrice)
-                                    userRepository.updateDistractionToolPrices(
-                                        draftAdderPrice,
-                                        draftRemoverPrice
-                                    )
-                                    Toast.makeText(
-                                        context,
-                                        "Paid $currentRemoverPrice coins & updated prices",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    onDismiss()
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error,
-                                    contentColor = MaterialTheme.colorScheme.onError
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Pay $currentRemoverPrice Coins & Lower Price")
-                            }
+                        Button(
+                            onClick = {
+                                if (isProcessing) return@Button
+                                isProcessing = true
+                                userRepository.useCoins(currentRemoverPrice)
+                                userRepository.updateDistractionToolPrices(
+                                    draftAdderPrice,
+                                    draftRemoverPrice
+                                )
+                                Toast.makeText(
+                                    context,
+                                    "Paid $currentRemoverPrice coins & updated prices",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                onDismiss()
+                            },
+                            enabled = canPayReductionWithCoins && !isProcessing,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.error,
+                                contentColor = MaterialTheme.colorScheme.onError,
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                disabledContentColor = MaterialTheme.colorScheme.outline
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("pay_coins_to_lower_price_button")
+                        ) {
+                            Text("Pay $currentRemoverPrice Coins & Lower Price")
                         }
 
                         OutlinedButton(
-                            onClick = onDismiss,
+                            onClick = { if (!isProcessing) onDismiss() },
+                            enabled = !isProcessing,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text("Cancel")

@@ -234,7 +234,8 @@ fun ScreentimeStatsScreen() {
             adderOwned = adderOwned,
             removerOwned = removerOwned,
             onToggleBlocked = { pkg, appLabel ->
-                if (userRepository != null) {
+                val repo = userRepository
+                if (repo != null) {
                     val isAdding = !blockedPackages.contains(pkg)
                     pendingDistractionAction = PendingDistractionAction.SingleToggle(
                         packageName = pkg,
@@ -242,12 +243,11 @@ fun ScreentimeStatsScreen() {
                         isAdding = isAdding
                     )
                 } else {
-                    val updated = blockedPackages.toMutableSet().apply {
-                        if (contains(pkg)) remove(pkg) else add(pkg)
-                    }
-                    blockedPackages = updated
-                    distractionsPrefs.edit { putStringSet("distracting_apps", updated) }
-                    sendRefreshRequest(context, INTENT_ACTION_REFRESH_APP_BLOCKER)
+                    Toast.makeText(
+                        context,
+                        "Commitment system unavailable. Please retry.",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             },
             onToggleIgnored = { pkg ->

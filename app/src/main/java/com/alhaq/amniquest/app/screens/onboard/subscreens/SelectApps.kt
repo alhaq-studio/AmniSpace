@@ -101,10 +101,6 @@ class SelectAppsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            // Ensure defaults (0 for Adder, 50 for Remover) are initialized and persisted if skipped
-            val currentAdder = userRepository.getDistractionAdderPrice()
-            val currentRemover = userRepository.getDistractionRemoverPrice()
-            userRepository.updateDistractionToolPrices(currentAdder, currentRemover)
             loadApps()
             loadSelectedApps()
         }
@@ -140,7 +136,19 @@ class SelectAppsViewModel @Inject constructor(
     }
 
     fun loadSelectedApps() {
-        _selectedApps.value = userRepository.getBlockedPackages()
+        val blocked = userRepository.getBlockedPackages()
+        if (blocked.isNotEmpty()) {
+            _selectedApps.value = blocked
+        } else {
+            val sp = context.getSharedPreferences("distractions", Context.MODE_PRIVATE)
+            val legacyBlocked = sp.getStringSet("distracting_apps", emptySet()) ?: emptySet()
+            if (legacyBlocked.isNotEmpty()) {
+                _selectedApps.value = legacyBlocked
+                userRepository.updateBlockedAppsSet(legacyBlocked)
+            } else {
+                _selectedApps.value = emptySet()
+            }
+        }
     }
 
     fun toggleApp(packageName: String) {
@@ -152,8 +160,11 @@ class SelectAppsViewModel @Inject constructor(
     }
 
     private fun saveToPrefs() {
-        userRepository.updateBlockedAppsSet(selectedApps.value)
-        Log.d("Saving distracting apps list", selectedApps.toString())
+        val currentSet = _selectedApps.value
+        userRepository.updateBlockedAppsSet(currentSet)
+        val sp = context.getSharedPreferences("distractions", Context.MODE_PRIVATE)
+        sp.edit { putStringSet("distracting_apps", currentSet) }
+        Log.d("Saving distracting apps list", currentSet.toString())
         sendRefreshRequest(context, INTENT_ACTION_REFRESH_APP_BLOCKER)
         AppBlockerServiceInfo.appBlockerService?.loadLockedApps()
     }
@@ -205,12 +216,7 @@ fun SelectApps(
     // Track single app removed in ALLOW_REMOVE mode
     var specialChosenApp by remember { mutableStateOf<String?>(null) }
 
-    val sp = context.getSharedPreferences("distractions", Context.MODE_PRIVATE)
-
-    fun saveToBlocker() {
-        sp.edit { putStringSet("distracting_apps", selectedApps.toSet()) }
-        sendRefreshRequest(context, INTENT_ACTION_REFRESH_APP_BLOCKER)
-        AppBlockerServiceInfo.appBlockerService?.loadLockedApps()
+    fun ensureBlockerServiceRunning() {
         if (!AppBlockerServiceInfo.isUsingAccessibilityService && AppBlockerServiceInfo.appBlockerService == null) {
             try {
                 androidx.core.content.ContextCompat.startForegroundService(
@@ -259,7 +265,7 @@ fun SelectApps(
                 }
             }
         }
-        saveToBlocker()
+        ensureBlockerServiceRunning()
     }
 
     Column(
@@ -342,35 +348,34 @@ fun SelectApps(
             }
 
             items(filteredApps, key = { it.packageName }) { (appName, packageName) ->
+                val isSelected = selectedApps.contains(packageName)
+
+                val isEnabled = when (selectAppsModes) {
+                    SelectAppsModes.ALLOW_ADD -> {
+                        !isSelected || addedInSession.contains(packageName)
+                    }
+                    SelectAppsModes.ALLOW_REMOVE -> {
+                        (specialChosenApp == null && isSelected) || specialChosenApp == packageName
+                    }
+                    SelectAppsModes.ALLOW_ADD_AND_REMOVE -> {
+                        true
+                    }
+                }
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable {
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(enabled = isEnabled) {
                             handleAppSelection(packageName)
                         }
                         .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val isSelected = selectedApps.contains(packageName)
-
-                    val isEnabled = when (selectAppsModes) {
-                        SelectAppsModes.ALLOW_ADD -> {
-                            !isSelected || addedInSession.contains(packageName)
-                        }
-                        SelectAppsModes.ALLOW_REMOVE -> {
-                            (specialChosenApp == null && isSelected) || specialChosenApp == packageName
-                        }
-                        SelectAppsModes.ALLOW_ADD_AND_REMOVE -> {
-                            true
-                        }
-                    }
-
                     Checkbox(
                         checked = isSelected,
                         enabled = isEnabled,
-                        onCheckedChange = { _ ->
-                            handleAppSelection(packageName)
-                        }
+                        onCheckedChange = null
                     )
                     Text(
                         text = appName,

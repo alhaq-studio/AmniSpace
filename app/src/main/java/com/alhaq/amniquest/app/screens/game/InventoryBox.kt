@@ -76,8 +76,11 @@ class InventoryBoxViewModel @Inject constructor(
 
     fun useSelectedItem(navController: NavController){
         val itemToUse = selectedInventoryItem.value ?: return
-        userRepository.deductFromInventory(itemToUse)
         _selectedInventoryItem.value = null
+        if (userRepository.getInventoryItemCount(itemToUse) <= 0) {
+            return
+        }
+        userRepository.deductFromInventory(itemToUse)
         executeItem(itemToUse, InventoryExecParams(
             navController = navController,
             userRepository = userRepository,
