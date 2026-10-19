@@ -3,8 +3,14 @@ package com.alhaq.amniquest
 import ai.onnxruntime.OnnxJavaType
 import ai.onnxruntime.platform.Fp16Conversions
 import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.DEFAULT_MODEL_CATALOG
+import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.DownloadableModel
+import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.SIGLIP2_FP16_URL
+import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.SIGLIP2_INT8_URL
+import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.SIGLIP2_Q4_URL
+import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.SIGLIP2_UINT8_URL
 import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.resolveActiveLocalModelId
 import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.resolveModelCatalog
+import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.sanitizeDownloadableModel
 import com.alhaq.amniquest.core.utils.evaluateZeroShotFeatures
 import com.alhaq.amniquest.core.utils.extractLogitsFromBuffers
 import com.alhaq.amniquest.core.utils.parseNanoValidationResponse
@@ -27,11 +33,12 @@ class OnDeviceAiPipelineTest {
 
     @Test
     fun defaultModelCatalog_hasOnlineAndAllQuantizedSiglip2Variants() {
-        assertTrue(DEFAULT_MODEL_CATALOG.size >= 6)
+        assertTrue(DEFAULT_MODEL_CATALOG.size >= 7)
         assertEquals("online", DEFAULT_MODEL_CATALOG.first().id)
 
         val offlineModels = DEFAULT_MODEL_CATALOG.filter { it.id != "online" }
         val expectedIds = setOf(
+            "SIGLIP2_Q4",
             "SIGLIP2_UINT8",
             "SIGLIP2_INT8",
             "SIGLIP2_Q4F16",
@@ -50,6 +57,30 @@ class OnDeviceAiPipelineTest {
             assertTrue("Version must not be blank for ${model.id}", model.version.isNotBlank())
             assertTrue("Accuracy must not be blank for ${model.id}", model.accuracy.isNotBlank())
         }
+    }
+
+    @Test
+    fun sanitizeDownloadableModel_redirectsUnquantizedAndLegacyModelsToQuantizedEndpoints() {
+        val onlineModel = DownloadableModel(0, "HIGHEST", "online", "", "1.0.0", isOnline = true)
+        assertEquals(onlineModel, sanitizeDownloadableModel(onlineModel))
+
+        val fp32Model = DownloadableModel(1500, "High", "model", "https://huggingface.co/onnx-community/siglip2-base-patch16-224-ONNX/resolve/main/onnx/model.onnx", "1.0.0")
+        val sanitizedFp32 = sanitizeDownloadableModel(fp32Model)
+        assertEquals(SIGLIP2_UINT8_URL, sanitizedFp32.url)
+        assertEquals(378, sanitizedFp32.sizeMB)
+
+        val legacySmall = DownloadableModel(300, "Fast", "small", "https://example.com/legacy_small.onnx", "1.0.0")
+        val sanitizedSmall = sanitizeDownloadableModel(legacySmall)
+        assertEquals(SIGLIP2_Q4_URL, sanitizedSmall.url)
+        assertEquals(300, sanitizedSmall.sizeMB)
+
+        val legacyMedium = DownloadableModel(400, "Balanced", "medium", "https://example.com/legacy_int8.onnx", "1.0.0")
+        val sanitizedMedium = sanitizeDownloadableModel(legacyMedium)
+        assertEquals(SIGLIP2_INT8_URL, sanitizedMedium.url)
+
+        val legacyFp16 = DownloadableModel(700, "Medium", "fp16", "https://example.com/legacy_fp16.onnx", "1.0.0")
+        val sanitizedFp16 = sanitizeDownloadableModel(legacyFp16)
+        assertEquals(SIGLIP2_FP16_URL, sanitizedFp16.url)
     }
 
     @Test

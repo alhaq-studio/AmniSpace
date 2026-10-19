@@ -83,6 +83,15 @@ val DEFAULT_MODEL_CATALOG = listOf(
         isOnline = true
     ),
     DownloadableModel(
+        id = "SIGLIP2_Q4",
+        url = SIGLIP2_Q4_URL,
+        sizeMB = 252,
+        accuracy = "Fast (Q4)",
+        version = "1.0.0",
+        isRecommended = false,
+        isOnline = false
+    ),
+    DownloadableModel(
         id = "SIGLIP2_UINT8",
         url = SIGLIP2_UINT8_URL,
         sizeMB = 378,
@@ -139,11 +148,13 @@ internal fun resolveModelCatalog(remoteJson: String?): List<DownloadableModel> {
         if (parsed.isEmpty()) return DEFAULT_MODEL_CATALOG
         val byId = LinkedHashMap<String, DownloadableModel>()
         for (model in parsed) {
-            byId[model.id] = model
+            val sanitized = sanitizeDownloadableModel(model)
+            byId[sanitized.id] = sanitized
         }
         for (model in DEFAULT_MODEL_CATALOG) {
-            if (!byId.containsKey(model.id)) {
-                byId[model.id] = model
+            val sanitized = sanitizeDownloadableModel(model)
+            if (!byId.containsKey(sanitized.id)) {
+                byId[sanitized.id] = sanitized
             }
         }
         byId.values.toList()
@@ -354,11 +365,12 @@ fun ModelDownloadDialog(
                 Toast.makeText(context, "Model ${model.id} is outdated. Re-downloading...", Toast.LENGTH_SHORT).show()
 
                 isModelDownloading = true
+                val targetModel = sanitizeDownloadableModel(model)
                 val inputData = Data.Builder()
-                    .putString(FileDownloadWorker.KEY_URL, model.url)
-                    .putString(FileDownloadWorker.KEY_FILE_NAME, "${model.id}.onnx")
-                    .putString(FileDownloadWorker.KEY_MODEL_ID, model.id)
-                    .putString(FileDownloadWorker.KEY_MODEL_VERSION, model.version)
+                    .putString(FileDownloadWorker.KEY_URL, targetModel.url)
+                    .putString(FileDownloadWorker.KEY_FILE_NAME, "${targetModel.id}.onnx")
+                    .putString(FileDownloadWorker.KEY_MODEL_ID, targetModel.id)
+                    .putString(FileDownloadWorker.KEY_MODEL_VERSION, targetModel.version)
                     .putBoolean(FileDownloadWorker.KEY_IS_ONE_SHOT, true)
                     .build()
 
@@ -483,19 +495,20 @@ fun ModelDownloadDialog(
                                                 }
                                                 Toast.makeText(context, "AI engine switched to ${if (model.isOnline) "Cloud Server" else "Local AI (${model.id})"}", Toast.LENGTH_SHORT).show()
                                             } else {
+                                                val targetModel = sanitizeDownloadableModel(model)
                                                 sp.edit(commit = true) {
-                                                    putString("downloading", model.id)
-                                                    putString("selected_one_shot_model", model.id)
+                                                    putString("downloading", targetModel.id)
+                                                    putString("selected_one_shot_model", targetModel.id)
                                                 }
-                                                currentModel = model.id
+                                                currentModel = targetModel.id
                                                 privateSp.edit().putString("validation_engine", "local").apply()
 
                                                 isModelDownloading = true
                                                 val inputData = Data.Builder()
-                                                    .putString(FileDownloadWorker.KEY_URL, model.url)
-                                                    .putString(FileDownloadWorker.KEY_FILE_NAME, "${model.id}.onnx")
-                                                    .putString(FileDownloadWorker.KEY_MODEL_ID, model.id)
-                                                    .putString(FileDownloadWorker.KEY_MODEL_VERSION, model.version)
+                                                    .putString(FileDownloadWorker.KEY_URL, targetModel.url)
+                                                    .putString(FileDownloadWorker.KEY_FILE_NAME, "${targetModel.id}.onnx")
+                                                    .putString(FileDownloadWorker.KEY_MODEL_ID, targetModel.id)
+                                                    .putString(FileDownloadWorker.KEY_MODEL_VERSION, targetModel.version)
                                                     .putBoolean(FileDownloadWorker.KEY_IS_ONE_SHOT, true)
                                                     .build()
 
@@ -505,7 +518,7 @@ fun ModelDownloadDialog(
                                                     .build()
 
                                                 WorkManager.getInstance(context).enqueueUniqueWork(
-                                                    "download_${model.id}.onnx",
+                                                    "download_${targetModel.id}.onnx",
                                                     ExistingWorkPolicy.KEEP,
                                                     workRequest
                                                 )

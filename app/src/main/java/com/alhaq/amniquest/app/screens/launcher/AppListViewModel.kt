@@ -235,7 +235,7 @@ class AppListViewModel @Inject constructor(
         val progressBonus = if (isImproving) 1 else 0
         val streakBonus = if (isConsistent) 1 else 0
 
-        // 📊 Dynamic max based on yesterday's screen time
+        // [INFO] Dynamic max based on yesterday's screen time
         val baseCap = (yesterday * 60 / 10).roundToInt() // 10 min = 1 unlock
         val trendFactor = if (isImproving) 0.75 else 1.0
         val generosityDecay = (1.2 - 0.1 * weeksSinceFirstUse).coerceAtLeast(0.5)

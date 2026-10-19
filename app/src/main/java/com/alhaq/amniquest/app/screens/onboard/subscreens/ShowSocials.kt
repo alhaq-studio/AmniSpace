@@ -88,7 +88,7 @@ fun ShowSocialsScreen() {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = "Donate 💖",
+                    text = "Donate",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium
                 )

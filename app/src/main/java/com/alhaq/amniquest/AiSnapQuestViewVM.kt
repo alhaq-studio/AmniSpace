@@ -22,6 +22,7 @@ import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.SIGLIP2_TOKENIZ
 import com.alhaq.amniquest.app.screens.quest.setup.ai_snap.model.ensureTokenizerQueued
 import com.alhaq.amniquest.app.screens.quest.view.ViewQuestVM
 import com.alhaq.amniquest.app.screens.quest.view.ai_snap.AI_SNAP_PIC
+import com.alhaq.amniquest.core.utils.extractLogitsFloatArray
 import com.alhaq.amniquest.backed.repositories.QuestRepository
 import com.alhaq.amniquest.backed.repositories.StatsRepository
 import com.alhaq.amniquest.backed.repositories.UserRepository
@@ -676,25 +677,59 @@ class AiSnapQuestViewVM @Inject constructor(
         val maxNegativeMetric: Float
     )
 
+    private fun safeExtractTensorFloats(tensor: Any?): FloatArray? {
+        if (tensor is OnnxTensor) {
+            return try {
+                extractLogitsFloatArray(tensor)
+            } catch (_: Exception) {
+                null
+            }
+        }
+        return null
+    }
+
     /**
      * Extracts and calibrates scores from SigLIP 2 ONNX outputs.
-     * Supports both `logits_per_image` / `logits_per_text` and `image_embeds` + `text_embeds`.
+     * Supports both `logits_per_image` / `logits_per_text` and `image_embeds` + `text_embeds`,
+     * directly handling multi-precision tensors (FLOAT, FLOAT16, BFLOAT16, DOUBLE).
      */
     private fun extractSiglipScores(
         ortResult: OrtSession.Result,
         batchSize: Int,
         positiveCount: Int
     ): SiglipScoringResult {
+        val tensorMap = mutableMapOf<String, OnnxTensor>()
         val outputMap = mutableMapOf<String, Any?>()
         for (entry in ortResult) {
-            outputMap[entry.key] = entry.value?.value
+            val v = entry.value
+            if (v is OnnxTensor) {
+                tensorMap[entry.key] = v
+            }
+            outputMap[entry.key] = try { v?.value } catch (_: Exception) { null }
         }
 
-        val logitsPerImage = extractFloatVector(outputMap["logits_per_image"], batchSize)
+        val logitsPerImage = tensorMap["logits_per_image"]?.let { safeExtractTensorFloats(it) }?.takeIf { it.size >= batchSize }
+            ?: extractFloatVector(outputMap["logits_per_image"], batchSize)
+            ?: tensorMap["logits_per_text"]?.let { safeExtractTensorFloats(it) }?.takeIf { it.size >= batchSize }
             ?: extractTransposedFloatVector(outputMap["logits_per_text"], batchSize)
 
-        val imageEmbeds = extract2DFloatArray(outputMap["image_embeds"])?.firstOrNull()
-        val textEmbeds = extract2DFloatArray(outputMap["text_embeds"])
+        val imageEmbeds = tensorMap["image_embeds"]?.let { safeExtractTensorFloats(it) }
+            ?: extract2DFloatArray(outputMap["image_embeds"])?.firstOrNull()
+
+        val textEmbeds: Array<FloatArray>? = run {
+            val txtTensor = tensorMap["text_embeds"]
+            if (txtTensor != null && imageEmbeds != null && imageEmbeds.isNotEmpty()) {
+                val flatTxt = safeExtractTensorFloats(txtTensor)
+                val dim = imageEmbeds.size
+                if (flatTxt != null && flatTxt.size >= batchSize * dim) {
+                    Array(batchSize) { b ->
+                        flatTxt.copyOfRange(b * dim, (b + 1) * dim)
+                    }
+                } else null
+            } else {
+                extract2DFloatArray(outputMap["text_embeds"])
+            }
+        }
 
         val cosineSims: FloatArray? = if (imageEmbeds != null && textEmbeds != null && textEmbeds.size >= batchSize) {
             FloatArray(batchSize) { i ->

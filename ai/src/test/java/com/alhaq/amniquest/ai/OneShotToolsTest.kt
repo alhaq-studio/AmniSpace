@@ -164,8 +164,8 @@ class OneShotToolsTest {
     @Test
     fun kotlinSentencePieceModel_syntheticProtobuf_encodesTokensCorrectly() {
         // Construct a minimal valid ModelProto binary protobuf:
-        // field 1 (SentencePiece): piece="cat", score=-1.0f, type=NORMAL (1)
-        val pieceBytes = "cat".toByteArray(Charsets.UTF_8)
+        // field 1 (SentencePiece): piece="\u2581cat", score=-1.0f, type=NORMAL (1)
+        val pieceBytes = "\u2581cat".toByteArray(Charsets.UTF_8)
         val piecePayload = java.io.ByteArrayOutputStream().apply {
             // field 1 (string piece): tag = (1 shl 3) or 2 = 10
             write(10)

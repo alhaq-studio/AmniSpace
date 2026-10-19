@@ -246,7 +246,7 @@ To eliminate false positives from camera noise, blank surfaces, or dark environm
 
 ### Hardware Acceleration, Session Caching & Runtime Fault Recovery
 
-- **Thread-Safe Session Caching**: `AiSnapQuestViewVM` maintains an active `OrtSession` guarded by a coroutine `Mutex` (`sessionLock`), reusing models across verification runs unless the selected model file changes (`loadedModelFilePath == modelFile.canonicalPath`).
+- **Thread-Safe Session Caching**: `AiSnapQuestViewVM` maintains an active `OrtSession` guarded by a thread-safe object lock (`synchronized(sessionLock)`), reusing models across verification runs unless the selected model file changes (`loadedModelFilePath == modelFile.canonicalPath`).
 - **Emergency Tokenizer Provisioning**: If tokenizer assets are missing during evaluation, `ensureTokenizerReady()` triggers a synchronous emergency fallback download to recover inference capabilities.
 - **NNAPI Acceleration & Automatic CPU Recovery**: Sessions initialize with NNAPI hardware acceleration enabled by default. If NNAPI execution fails during `session.run(inputs)` due to driver incompatibility or unsupported tensor shapes, the session automatically catches the runtime exception, recreates a CPU-only `OrtSession`, and completes verification without user disruption.
 - **Memory & Bitmap Lifecycle**:

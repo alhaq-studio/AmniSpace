@@ -51,7 +51,7 @@ fun FreePassInfo(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
             Text(
-                text = "😤 I THOUGHT YOU DOWNLOADED THIS APP TO FIX YOUR LIFE",
+                text = "I THOUGHT YOU DOWNLOADED THIS APP TO FIX YOUR LIFE",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFFFF6F00)
@@ -66,7 +66,7 @@ fun FreePassInfo(
 
             Text(
                 text = "These free passes adapt to how consistent and committed you’ve been.\n" +
-                        "Keep up the grind, or the boosts slow down. And so does your progress. \uD83D\uDC40",
+                        "Keep up the grind, or the boosts slow down. And so does your progress.",
                 fontSize = 13.sp,
                 color = textColor.copy(alpha = 0.85f),
                 lineHeight = 18.sp,
@@ -84,7 +84,7 @@ fun FreePassInfo(
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Text(
-                    "🔥 Start a Quest",
+                    "Start a Quest",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -102,7 +102,7 @@ fun FreePassInfo(
                     shape = RoundedCornerShape(16.dp)
                 ) {
                     Text(
-                        "😐 Use Free Pass",
+                        "Use Free Pass",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.LightGray
@@ -143,7 +143,7 @@ fun MakeAChoice(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    "🔥\n\nTake the Quest!",
+                    "Take the Quest!",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -152,7 +152,7 @@ fun MakeAChoice(
                 Spacer(Modifier.height(12.dp))
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "🚀 Only takes a few mins!",
+                    "Only takes a few mins!",
                     fontSize = 12.sp,
                     color = Color.White.copy(alpha = 0.8f)
                 )
@@ -178,7 +178,7 @@ fun MakeAChoice(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    "😐 Use Free Pass",
+                    "Use Free Pass",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                     color = Color.DarkGray

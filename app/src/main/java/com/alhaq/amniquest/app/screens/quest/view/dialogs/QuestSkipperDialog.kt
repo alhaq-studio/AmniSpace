@@ -125,7 +125,7 @@ fun QuestSkipperDialog(viewModel: ViewQuestVM) {
                     val message = if ((progress * 100).roundToInt() != 0)
                         getAntiQuitMessage(context, progress.roundToInt())
                     else
-                        "You opened the app, stared at the button, and decided to quit? Legendary move 😭"
+                        "You opened the app, stared at the button, and decided to quit? Legendary move."
 
                     Text(
                         text = message,

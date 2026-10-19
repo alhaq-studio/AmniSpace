@@ -156,9 +156,15 @@ class FileDownloadWorker(
 
     override suspend fun doWork(): Result {
         // Extract input data; fail if essential data is missing.
-        val url = inputData.getString(KEY_URL) ?: return Result.failure()
+        val modelId = inputData.getString(KEY_MODEL_ID)
+        val url = inputData.getString(KEY_URL)
+        if (url.isNullOrBlank() || modelId.isNullOrBlank()) {
+            if (!modelId.isNullOrBlank()) {
+                updateSharedPrefsOnFailure(modelId)
+            }
+            return Result.failure()
+        }
         val fileName = inputData.getString(KEY_FILE_NAME) ?: "downloaded_file.zip"
-        val modelId = inputData.getString(KEY_MODEL_ID) ?: return Result.failure()
         val isOneShotModel = inputData.getBoolean(KEY_IS_ONE_SHOT, false)
         val modelVersion = inputData.getString(KEY_MODEL_VERSION) ?: "0.0.0"
 
@@ -257,8 +263,13 @@ class FileDownloadWorker(
                         200, 206 -> {
                             val body = response.body ?: throw IllegalStateException("Response body is null")
 
-                            if (response.code == 200 && partFile.exists() && partFile.length() > 0) {
-                                partFile.delete()
+                            if (response.code == 200) {
+                                if (partFile.exists()) {
+                                    partFile.delete()
+                                }
+                                if (file.exists()) {
+                                    file.delete()
+                                }
                             }
 
                             val (effectiveDownloadedBytes, totalFileSize) = resolveEffectiveOffsetAndTotalSize(

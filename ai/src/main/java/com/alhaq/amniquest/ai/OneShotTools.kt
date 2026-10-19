@@ -247,8 +247,8 @@ internal class KotlinSentencePieceModel private constructor(
             trie.add(TrieNode())
             val byteTokens = IntArray(256) { -1 }
             var unkId = 3
-            var addDummyPrefix = false
-            var removeExtraWhitespaces = false
+            var addDummyPrefix = true
+            var removeExtraWhitespaces = true
             var escapeWhitespaces = true
 
             var pos = 0

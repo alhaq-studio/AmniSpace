@@ -92,7 +92,7 @@ fun CommonSetBaseQuest(createdOnDate:String,questInfoState: QuestInfoState, isTi
                     "(${formatHour(questInfoState.initialTimeRange[0])} to " +
                     "${formatHour(questInfoState.initialTimeRange[1])}) until this quest is complete. " +
                     "Coins won’t unlock apps during this time.",
-            modifier = Modifier.weight(1f) // ✅ allow wrapping inside row
+            modifier = Modifier.weight(1f) // Allow wrapping inside row
         )
 
         Spacer(Modifier.width(8.dp))

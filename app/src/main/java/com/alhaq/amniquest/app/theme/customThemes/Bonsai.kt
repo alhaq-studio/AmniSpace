@@ -12,7 +12,7 @@ import com.alhaq.amniquest.app.theme.data.CustomColor
 class BonsaiTheme(): BaseTheme {
     override fun getRootColorScheme(): ColorScheme {
         return lightColorScheme(
-            primary = Color(0xFF3A7D44),       // Deep bonsai green 🌿
+            primary = Color(0xFF3A7D44),       // Deep bonsai green
             onPrimary = Color(0xFFEFFAE3),     // Light foliage highlight
 
             secondary = Color(0xFF6E8B3D),     // Olive leaf tone
